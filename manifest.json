@@ -1,0 +1,22 @@
+{
+  "name": "Bate Ponto Empório",
+  "short_name": "Bate Ponto",
+  "description": "Sistema de Controle de Jornada",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#4a2010",
+  "theme_color": "#4a2010",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "logo.jpeg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "logo.jpeg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}
