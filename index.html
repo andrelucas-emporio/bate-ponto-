@@ -380,7 +380,7 @@ onAuthStateChanged(auth, async (user) => {
 function renderApp() {
   const isG = currentProfile.tipo === 'gerente';
   const navItems = isG
-    ? [['dashboard','📊','Dashboard'],['funcionarios','👥','Equipe'],['log','📋','Auditoria'],['cadastro','➕','Cadastrar']]
+    ? [['dashboard','📊','Dashboard'],['funcionarios','👥','Equipe'],['banco','⏳','Banco Horas'],['log','📋','Auditoria'],['cadastro','➕','Cadastrar']]
     : [['ponto','🕐','Bater Ponto'],['historico','📅','Histórico'],['relatorio','📄','Relatório']];
 
   document.getElementById('app').innerHTML = `
@@ -407,6 +407,7 @@ function renderApp() {
 
   startClock();
   requestGeo();
+  requestNotifPermission();
   const defaultScreen = isG ? 'dashboard' : 'ponto';
   showScreen(defaultScreen);
 }
@@ -427,6 +428,7 @@ window.showScreen = async function(id) {
     else if (id === 'relatorio') html = await buildRelatorioScreen(currentUser.uid);
     else if (id === 'dashboard') html = await buildDashboard();
     else if (id === 'funcionarios') html = await buildFuncionariosScreen();
+    else if (id === 'banco') html = await buildBancoHoras();
     else if (id === 'log') html = await buildLogScreen();
     else if (id === 'cadastro') html = buildCadastroScreen();
     content.innerHTML = `<div class="screen active" id="screen-${id}">${html}</div>`;
@@ -437,9 +439,58 @@ window.showScreen = async function(id) {
   }
 }
 
+// ===== NOTIFICAÇÕES =====
+let notifPermission = false;
+let notif30Sent = false;
+let notif10Sent = false;
+let lastNotifDay = null;
+
+async function requestNotifPermission() {
+  if ('Notification' in window) {
+    const perm = await Notification.requestPermission();
+    notifPermission = perm === 'granted';
+  }
+}
+
+function sendNotif(title, body, icon='🕐') {
+  if (notifPermission && 'Notification' in window) {
+    new Notification(title, { body, icon: 'logo.jpeg' });
+  }
+  showToast(icon+' '+body, 6000);
+}
+
+async function checkJornadaNotifs() {
+  if (!currentUser || currentProfile.tipo !== 'funcionario') return;
+  const today = getToday();
+  // Reset flags on new day
+  if (lastNotifDay !== today) { notif30Sent=false; notif10Sent=false; lastNotifDay=today; }
+
+  const recs = await getUserTodayRecords(currentUser.uid);
+  const entrada = recs.find(r=>r.tipo==='entrada');
+  const saida = recs.find(r=>r.tipo==='saida');
+  if (!entrada || saida) return; // Not working or already left
+
+  const jornada = currentProfile.jornada || 8;
+  const horasLive = calcHorasLive(recs);
+  if (horasLive === null) return;
+
+  const minutosRestantes = (jornada - horasLive) * 60;
+  const minutosExtra = (horasLive - jornada) * 60;
+
+  if (!notif30Sent && minutosRestantes <= 30 && minutosRestantes > 0) {
+    notif30Sent = true;
+    sendNotif('⏰ Jornada quase no fim!', `Faltam ${Math.round(minutosRestantes)} minutos para encerrar sua jornada.`, '⏰');
+  }
+  if (!notif10Sent && minutosExtra >= 10) {
+    notif10Sent = true;
+    sendNotif('⚠️ Hora extra!', `Você está há ${Math.round(minutosExtra)} minutos em hora extra. Registre sua saída!`, '⚠️');
+  }
+}
+
 // ===== CLOCK =====
 function startClock() {
   if (clockInterval) clearInterval(clockInterval);
+  let notifTick = 0;
   function tick() {
     const cl = document.getElementById('clock');
     const cd = document.getElementById('clock-date');
@@ -448,9 +499,14 @@ function startClock() {
     cl.textContent = now.toLocaleTimeString('pt-BR');
     if (cd) cd.textContent = now.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
     const geo = document.getElementById('geo-status');
-    if (geo) geo.textContent = geoCoords ? `📍 ${geoCoords.lat}, ${geoCoords.lng}` : 'Localização não disponível';
+    if (geo) geo.textContent = geoCoords ? '📍 '+geoCoords.lat+', '+geoCoords.lng : 'Localização não disponível';
+    // Check jornada notifications every 30 seconds
+    notifTick++;
+    if (notifTick % 30 === 0) checkJornadaNotifs();
   }
   tick(); clockInterval = setInterval(tick, 1000);
+  // Check immediately on load
+  setTimeout(checkJornadaNotifs, 3000);
 }
 
 // ===== FIRESTORE HELPERS =====
@@ -489,6 +545,43 @@ function calcHorasFromRecs(recs) {
   return total / 3600000;
 }
 
+// Live hours worked (sem saida ainda)
+function calcHorasLive(recs) {
+  const e = recs.find(r=>r.tipo==='entrada');
+  if (!e) return null;
+  const s = recs.find(r=>r.tipo==='saida');
+  const end = s ? s.timestamp : Date.now();
+  const ii = recs.find(r=>r.tipo==='inicio-intervalo');
+  const fi = recs.find(r=>r.tipo==='fim-intervalo');
+  let total = end - e.timestamp;
+  if (ii) {
+    const intEnd = fi ? fi.timestamp : Math.min(Date.now(), end);
+    total -= (intEnd - ii.timestamp);
+  }
+  return total / 3600000;
+}
+
+async function calcBancoHoras(uid) {
+  const profSnap = await getDoc(doc(db,'usuarios',uid));
+  const jornada = profSnap.exists() ? (profSnap.data().jornada||8) : 8;
+  const q = query(collection(db,'registros'), where('userId','==',uid), orderBy('timestamp','asc'));
+  const snap = await getDocs(q);
+  const recs = snap.docs.map(d=>({id:d.id,...d.data()}));
+  const days = {};
+  recs.forEach(r=>{ if(!days[r.data]) days[r.data]=[]; days[r.data].push(r); });
+  let saldo = 0;
+  const detalhes = [];
+  Object.keys(days).sort().forEach(d=>{
+    const h = calcHorasFromRecs(days[d]);
+    if (h !== null) {
+      const diff = h - jornada;
+      saldo += diff;
+      detalhes.push({ data:d, horas:h, diff });
+    }
+  });
+  return { saldo, detalhes, jornada };
+}
+
 async function calcMonthStats(uid) {
   const now = new Date(); const month = now.getMonth(); const year = now.getFullYear();
   const q = query(collection(db,'registros'), where('userId','==',uid), orderBy('timestamp','asc'));
@@ -516,6 +609,11 @@ async function calcMonthStats(uid) {
 async function buildPontoScreen() {
   const status = await getUserStatus(currentUser.uid);
   const next = await nextPontoType(currentUser.uid);
+  const todayRecs = await getUserTodayRecords(currentUser.uid);
+  const horasLive = calcHorasLive(todayRecs);
+  const jornada = currentProfile.jornada || 8;
+  const pctJornada = horasLive!==null ? Math.min(150,(horasLive/jornada*100)).toFixed(0) : 0;
+  const barCor = horasLive!==null && horasLive>jornada ? '#c0392b' : '#3a6b1a';
   const statusInfo = {
     none: {icon:'☕',label:'Aguardando Entrada',sub:'Clique em Entrada para começar',bg:'#fef8ea'},
     entrada: {icon:'🟢',label:'Em Serviço',sub:'Trabalhando normalmente',bg:'#eaf6f0'},
@@ -538,9 +636,18 @@ async function buildPontoScreen() {
     </div>
     <div class="status-card">
       <div class="status-icon" style="background:${si.bg}">${si.icon}</div>
-      <div>
+      <div style="flex:1">
         <div class="status-text-main">${si.label}</div>
         <div class="status-text-sub">${si.sub}</div>
+        ${horasLive!==null ? `<div style="margin-top:6px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:3px">
+            <span>⏱ ${horasLive.toFixed(1)}h trabalhadas</span>
+            <span>${pctJornada}% da jornada</span>
+          </div>
+          <div style="background:var(--border);border-radius:4px;height:5px">
+            <div style="background:${barCor};height:5px;border-radius:4px;width:${Math.min(100,pctJornada)}%;transition:.5s"></div>
+          </div>
+        </div>` : ''}
       </div>
     </div>
     <div class="ponto-btns">
@@ -821,6 +928,64 @@ window.printRelatorio = async function(uid, mesOffset=0) {
       <p style="font-size:9px;color:#999;text-align:center;margin-top:20px">Gerado em ${new Date().toLocaleString('pt-BR')} · Sistema Bate Ponto Empório · Coisas da Roça</p>
     </div>`;
   window.print();
+}
+
+
+// ===== BANCO DE HORAS =====
+async function buildBancoHoras() {
+  const usersSnap = await getDocs(query(collection(db,'usuarios'), where('tipo','==','funcionario'), where('status','==','ativo')));
+  const users = usersSnap.docs.map(d=>({id:d.id,...d.data()}));
+  let cards = '';
+
+  for (const u of users) {
+    const banco = await calcBancoHoras(u.id);
+    const saldo = banco.saldo;
+    const isPositivo = saldo >= 0;
+    const saldoStr = (isPositivo?'+':'')+saldo.toFixed(1)+'h';
+    const cor = saldo > 0 ? '#27ae60' : saldo < -0.1 ? '#c0392b' : '#a07840';
+    const icon = saldo > 0 ? '📈' : saldo < -0.1 ? '📉' : '✅';
+
+    // Last 5 days with diff
+    const ultimos = banco.detalhes.slice(-5).reverse();
+    const rows = ultimos.map(function(d){
+      const diffStr = (d.diff>=0?'+':'')+d.diff.toFixed(1)+'h';
+      const dc = d.diff>0.05?'#27ae60':d.diff<-0.05?'#c0392b':'#a07840';
+      return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border)">'+
+        '<span>'+formatDate(d.data)+'</span>'+
+        '<span style="font-family:monospace">'+d.horas.toFixed(1)+'h</span>'+
+        '<span style="font-weight:700;color:'+dc+'">'+diffStr+'</span>'+
+      '</div>';
+    }).join('');
+
+    cards += '<div class="func-card">'+
+      '<div class="func-card-top">'+
+        '<div class="func-avatar">'+u.nome[0]+'</div>'+
+        '<div style="flex:1"><div class="func-name">'+u.nome+'</div><div class="func-role">'+u.cargo+' · '+banco.jornada+'h/dia</div></div>'+
+        '<div style="text-align:right"><div style="font-size:22px;font-weight:800;font-family:monospace;color:'+cor+'">'+saldoStr+'</div><div style="font-size:10px;color:var(--text3)">saldo total</div></div>'+
+      '</div>'+
+      '<div style="background:var(--surface2);border-radius:8px;padding:10px;margin-top:4px">'+
+        '<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Últimos registros '+icon+'</div>'+
+        (rows || '<div style="font-size:12px;color:var(--text3)">Sem registros ainda</div>')+
+      '</div>'+
+      '<div style="display:flex;gap:8px;margin-top:10px">'+
+        '<div style="flex:1;text-align:center;background:'+(saldo>0?'#eaf6f0':'#fdecea')+';border-radius:8px;padding:8px">'+
+          '<div style="font-size:16px;font-weight:800;color:'+cor+';font-family:monospace">'+saldoStr+'</div>'+
+          '<div style="font-size:10px;color:var(--text3)">saldo banco</div>'+
+        '</div>'+
+        '<div style="flex:1;text-align:center;background:var(--surface2);border-radius:8px;padding:8px">'+
+          '<div style="font-size:16px;font-weight:800;color:var(--primary);font-family:monospace">'+banco.detalhes.length+'</div>'+
+          '<div style="font-size:10px;color:var(--text3)">dias registrados</div>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }
+
+  return (
+    '<div class="section-title">⏳ Banco de Horas</div>'+
+    '<div class="alert-card warn" style="margin-bottom:16px"><span class="alert-icon">ℹ️</span><div class="alert-text"><strong>Como funciona</strong><span>Positivo (+) = horas extras acumuladas. Negativo (−) = horas devidas.</span></div></div>'+
+    cards+
+    (users.length===0?'<div class="empty-state"><div class="es-icon">⏳</div><p>Nenhum funcionário ativo</p></div>':'')
+  );
 }
 
 // ===== DASHBOARD =====
