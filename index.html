@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Bate Ponto Empório</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #4a2010;
+    --primary-light: #6b3018;
+    --primary-dark: #2e1008;
+    --accent: #d4890a;
+    --accent-light: #f0a820;
+    --accent-dark: #a86a08;
+    --green: #3a6b1a;
+    --green-light: #4e8a22;
+    --cream: #f5e8c0;
+    --cream-dark: #e8d49a;
+    --danger: #c0392b;
+    --warn: #e67e22;
+    --success: #27ae60;
+    --bg: #faf5ea;
+    --surface: #ffffff;
+    --surface2: #fdf8ef;
+    --border: #e8d4a8;
+    --text: #2e1008;
+    --text2: #6b4520;
+    --text3: #a07840;
+    --shadow: 0 2px 16px rgba(74,32,16,0.10);
+    --shadow-lg: 0 8px 32px rgba(74,32,16,0.18);
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Sora', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #app {
+    width: 100%;
+    max-width: 430px;
+    min-height: 100vh;
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* LOADING */
+  .loading-screen {
+    flex:1; display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    background: linear-gradient(170deg, var(--primary-dark), var(--primary));
+    gap: 16px;
+  }
+  .loading-icon { font-size: 56px; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+  .loading-text { color: var(--cream); font-size: 14px; font-weight: 600; }
+
+  /* LOGIN */
+  .login-screen {
+    flex:1; display:flex; flex-direction:column;
+    background: linear-gradient(170deg, var(--primary-dark) 0%, var(--primary) 45%, var(--primary-light) 100%);
+    position:relative; overflow:hidden;
+  }
+  .login-deco { position:absolute; opacity:.08; font-size:120px; pointer-events:none; }
+  .login-deco.d1 { top:-10px; right:-20px; transform:rotate(20deg); }
+  .login-deco.d2 { top:60px; left:-30px; transform:rotate(-15deg); }
+  .login-sun { position:absolute; top:-60px; left:50%; transform:translateX(-50%); width:200px; height:200px; border-radius:50%; background:radial-gradient(circle,rgba(212,137,10,0.35) 0%,transparent 70%); pointer-events:none; }
+  .login-top { padding:56px 36px 28px; position:relative; z-index:1; text-align:center; }
+  .login-logo-wrap { width:100px; height:100px; margin:0 auto 18px; border-radius:50%; background:var(--cream); border:4px solid var(--accent); display:flex; align-items:center; justify-content:center; font-size:52px; box-shadow:0 4px 24px rgba(212,137,10,0.5),0 0 0 8px rgba(212,137,10,0.15); }
+  .login-title { color:var(--cream); font-size:22px; font-weight:800; letter-spacing:1px; text-shadow:0 2px 8px rgba(0,0,0,0.3); }
+  .login-subtitle { color:rgba(245,232,192,0.6); font-size:12px; margin-top:5px; letter-spacing:.5px; }
+  .login-ribbon { background:var(--accent-dark); height:6px; margin:0; position:relative; }
+  .login-form-card { background:var(--surface); border-radius:28px 28px 0 0; padding:30px 28px 40px; flex:1; position:relative; z-index:1; border-top:3px solid var(--accent); }
+  .login-form-title { font-size:17px; font-weight:800; color:var(--primary); margin-bottom:22px; display:flex; align-items:center; gap:8px; }
+  .form-label { font-size:11px; font-weight:700; color:var(--text2); letter-spacing:.7px; text-transform:uppercase; margin-bottom:7px; display:block; }
+  .form-input { width:100%; padding:13px 16px; border:2px solid var(--border); border-radius:var(--radius-sm); font-family:inherit; font-size:15px; color:var(--text); background:var(--surface2); transition:border-color .2s,box-shadow .2s; outline:none; }
+  .form-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(212,137,10,0.12); }
+  .form-group { margin-bottom:16px; }
+  .btn-primary { width:100%; padding:15px; background:linear-gradient(135deg,var(--primary) 0%,var(--primary-light) 100%); color:var(--cream); border:none; border-radius:var(--radius-sm); font-family:inherit; font-size:15px; font-weight:800; cursor:pointer; transition:all .2s; letter-spacing:.5px; border-bottom:3px solid var(--primary-dark); }
+  .btn-primary:hover { filter:brightness(1.1); transform:translateY(-1px); }
+  .btn-primary:active { transform:translateY(1px); border-bottom-width:1px; }
+  .btn-primary:disabled { opacity:.6; cursor:not-allowed; transform:none; }
+  .login-error { background:#fdf0ee; border:1.5px solid #f5c6c2; border-radius:8px; padding:10px 14px; color:var(--danger); font-size:13px; margin-bottom:14px; display:none; }
+
+  /* HEADER */
+  .app-header { background:linear-gradient(135deg,var(--primary-dark) 0%,var(--primary) 100%); padding:14px 18px 12px; display:flex; align-items:center; justify-content:space-between; border-bottom:3px solid var(--accent); position:sticky; top:0; z-index:100; }
+  .header-logo { display:flex; align-items:center; gap:10px; }
+  .header-icon { width:38px; height:38px; background:var(--cream); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:20px; border:2px solid var(--accent); }
+  .header-name { color:var(--cream); font-size:14px; font-weight:800; }
+  .header-role { color:rgba(245,232,192,0.6); font-size:11px; }
+  .btn-logout { background:rgba(245,232,192,0.15); border:1.5px solid rgba(245,232,192,0.25); color:var(--cream); padding:7px 12px; border-radius:8px; cursor:pointer; font-size:12px; font-family:inherit; font-weight:700; transition:.2s; }
+  .btn-logout:hover { background:rgba(245,232,192,0.25); }
+
+  /* NAV */
+  .app-nav { background:var(--surface); border-top:2px solid var(--border); display:flex; position:sticky; bottom:0; z-index:100; }
+  .nav-item { flex:1; padding:10px 4px 8px; display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer; border:none; background:transparent; font-family:inherit; color:var(--text3); transition:.2s; font-size:10px; font-weight:700; }
+  .nav-item .ni { font-size:20px; }
+  .nav-item.active { color:var(--accent-dark); }
+
+  /* CONTENT */
+  .app-content { flex:1; overflow-y:auto; background:var(--bg); }
+  .screen { display:none; padding:18px; }
+  .screen.active { display:block; }
+
+  /* DATETIME */
+  .datetime-card { background:linear-gradient(135deg,var(--primary-dark) 0%,var(--primary) 60%,var(--primary-light) 100%); border-radius:var(--radius); padding:22px 24px; text-align:center; margin-bottom:16px; position:relative; overflow:hidden; border-bottom:3px solid var(--accent); }
+  .datetime-card::before { content:''; position:absolute; top:-40px; left:50%; transform:translateX(-50%); width:160px; height:160px; border-radius:50%; background:radial-gradient(circle,rgba(212,137,10,0.3) 0%,transparent 70%); pointer-events:none; }
+  .dt-deco { font-size:11px; color:rgba(245,232,192,0.4); letter-spacing:2px; text-transform:uppercase; margin-bottom:6px; }
+  .dt-time { color:var(--cream); font-size:44px; font-weight:800; font-family:'JetBrains Mono',monospace; letter-spacing:3px; text-shadow:0 2px 12px rgba(0,0,0,0.3); }
+  .dt-date { color:rgba(245,232,192,0.75); font-size:13px; margin-top:4px; text-transform:capitalize; }
+
+  /* STATUS */
+  .status-card { background:var(--surface); border-radius:var(--radius); padding:14px 18px; margin-bottom:16px; border:2px solid var(--border); display:flex; align-items:center; gap:14px; }
+  .status-icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; }
+  .status-text-main { font-size:14px; font-weight:800; color:var(--primary); }
+  .status-text-sub { font-size:12px; color:var(--text3); margin-top:2px; }
+
+  /* PONTO BUTTONS */
+  .ponto-btns { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .btn-ponto { padding:18px 10px; border:2.5px solid transparent; border-radius:var(--radius); cursor:pointer; font-family:inherit; font-size:13px; font-weight:800; display:flex; flex-direction:column; align-items:center; gap:7px; transition:all .2s; background:var(--surface); border-bottom-width:4px; }
+  .btn-ponto .bp-icon { font-size:26px; }
+  .btn-ponto.entrada { border-color:var(--green); color:var(--green); }
+  .btn-ponto.entrada:not(:disabled):hover { background:var(--green); color:#fff; }
+  .btn-ponto.inicio-intervalo { border-color:var(--warn); color:var(--warn); }
+  .btn-ponto.inicio-intervalo:not(:disabled):hover { background:var(--warn); color:#fff; }
+  .btn-ponto.fim-intervalo { border-color:var(--accent-dark); color:var(--accent-dark); }
+  .btn-ponto.fim-intervalo:not(:disabled):hover { background:var(--accent-dark); color:#fff; }
+  .btn-ponto.saida { border-color:var(--danger); color:var(--danger); }
+  .btn-ponto.saida:not(:disabled):hover { background:var(--danger); color:#fff; }
+  .btn-ponto:disabled { opacity:.28; cursor:not-allowed; }
+  .btn-ponto:not(:disabled):active { transform:translateY(2px); border-bottom-width:2px; }
+  .geo-info { font-size:11px; color:var(--text3); text-align:center; margin-top:14px; }
+
+  /* HISTORICO */
+  .summary-card { background:linear-gradient(135deg,var(--primary) 0%,var(--primary-light) 100%); border-radius:var(--radius); padding:16px 20px; margin-bottom:16px; display:flex; justify-content:space-around; border-bottom:3px solid var(--accent-dark); }
+  .sum-item { text-align:center; }
+  .sum-val { color:var(--cream); font-size:22px; font-weight:800; font-family:'JetBrains Mono',monospace; }
+  .sum-label { color:rgba(245,232,192,0.6); font-size:10px; margin-top:2px; text-transform:uppercase; letter-spacing:.5px; }
+  .hist-day-group { margin-bottom:14px; }
+  .hist-day-label { font-size:11px; font-weight:800; color:var(--text2); text-transform:uppercase; letter-spacing:.7px; margin-bottom:7px; display:flex; align-items:center; gap:8px; }
+  .hist-day-label::after { content:''; flex:1; height:1px; background:var(--border); }
+  .hist-entry { background:var(--surface); border-radius:var(--radius-sm); padding:12px 15px; margin-bottom:7px; display:flex; align-items:center; gap:12px; border:1.5px solid var(--border); }
+  .hist-dot { width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+  .hist-dot.entrada { background:#eaf6ee; }
+  .hist-dot.inicio-intervalo { background:#fef3e8; }
+  .hist-dot.fim-intervalo { background:#fef8ea; }
+  .hist-dot.saida { background:#fdecea; }
+  .hist-type { font-size:13px; font-weight:700; color:var(--primary); }
+  .hist-time { font-size:12px; color:var(--text3); font-family:'JetBrains Mono',monospace; margin-top:2px; }
+  .hist-edited { font-size:10px; color:var(--warn); margin-top:2px; }
+
+  /* SECTION TITLE */
+  .section-title { font-size:15px; font-weight:800; color:var(--primary); margin-bottom:14px; display:flex; align-items:center; gap:8px; padding-bottom:8px; border-bottom:2px solid var(--border); }
+  .section-title::before { content:''; width:4px; height:18px; background:var(--accent); border-radius:2px; }
+
+  /* ALERTS */
+  .alert-card { border-radius:var(--radius-sm); padding:13px 15px; margin-bottom:10px; display:flex; align-items:flex-start; gap:10px; font-size:13px; }
+  .alert-card.warn { background:#fef8ea; border:1.5px solid var(--accent); }
+  .alert-card.danger { background:#fdecea; border:1.5px solid #f5b4ae; }
+  .alert-card.success { background:#eaf6f0; border:1.5px solid #a8d5bc; }
+  .alert-icon { font-size:18px; flex-shrink:0; }
+  .alert-text strong { display:block; font-weight:800; color:var(--primary); }
+  .alert-text span { color:var(--text2); font-size:12px; }
+
+  /* FUNC CARD */
+  .func-card { background:var(--surface); border-radius:var(--radius); padding:15px; margin-bottom:10px; border:2px solid var(--border); cursor:pointer; transition:.2s; }
+  .func-card:hover { border-color:var(--accent); box-shadow:var(--shadow); }
+  .func-card-top { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+  .func-avatar { width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg,var(--primary),var(--primary-light)); color:var(--cream); display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:800; flex-shrink:0; border:2px solid var(--accent); }
+  .func-name { font-size:14px; font-weight:800; color:var(--primary); }
+  .func-role { font-size:12px; color:var(--text3); }
+  .func-badges { display:flex; gap:6px; flex-wrap:wrap; }
+  .badge { padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+  .badge.ok { background:#eaf6f0; color:var(--green); }
+  .badge.warn { background:#fef3e8; color:var(--warn); }
+  .badge.danger { background:#fdecea; color:var(--danger); }
+  .badge.gray { background:var(--surface2); color:var(--text3); border:1px solid var(--border); }
+
+  /* MODAL */
+  .modal-overlay { position:fixed; inset:0; background:rgba(46,16,8,0.55); z-index:1000; display:flex; align-items:flex-end; justify-content:center; }
+  .modal-box { background:var(--surface); border-radius:24px 24px 0 0; width:100%; max-width:430px; padding:26px 22px 36px; max-height:88vh; overflow-y:auto; animation:slideUp .3s ease; border-top:3px solid var(--accent); }
+  @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+  .modal-title { font-size:18px; font-weight:800; color:var(--primary); margin-bottom:4px; }
+  .modal-close { float:right; background:var(--surface2); border:1.5px solid var(--border); width:32px; height:32px; border-radius:8px; cursor:pointer; font-size:16px; color:var(--text2); }
+  .detail-entry { padding:11px 14px; border-radius:var(--radius-sm); background:var(--surface2); border:1.5px solid var(--border); margin-bottom:7px; display:flex; align-items:center; gap:10px; }
+  .de-icon { font-size:20px; }
+  .de-info { flex:1; }
+  .de-type { font-size:13px; font-weight:800; color:var(--primary); }
+  .de-time { font-size:11px; color:var(--text3); font-family:'JetBrains Mono',monospace; }
+  .de-edit { padding:6px 12px; border-radius:8px; border:2px solid var(--accent-dark); background:transparent; color:var(--accent-dark); font-size:11px; font-weight:800; cursor:pointer; font-family:inherit; transition:.2s; }
+  .de-edit:hover { background:var(--accent-dark); color:#fff; }
+  textarea.form-input { resize:vertical; min-height:80px; }
+  .btn-secondary { padding:13px 20px; border:2px solid var(--primary); background:transparent; color:var(--primary); border-radius:var(--radius-sm); font-family:inherit; font-size:14px; font-weight:800; cursor:pointer; transition:.2s; width:100%; margin-top:8px; }
+  .btn-secondary:hover { background:var(--primary); color:var(--cream); }
+
+  /* CADASTRO */
+  .form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .form-select { width:100%; padding:13px 16px; border:2px solid var(--border); border-radius:var(--radius-sm); font-family:inherit; font-size:15px; color:var(--text); background:var(--surface2); outline:none; transition:border-color .2s; appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b4520' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 14px center; }
+  .form-select:focus { border-color:var(--accent); }
+
+  /* LOG */
+  .log-entry { background:var(--surface); border-radius:var(--radius-sm); padding:13px 15px; margin-bottom:7px; border:1.5px solid var(--border); font-size:12px; }
+  .log-who { font-weight:800; color:var(--accent-dark); }
+  .log-what { color:var(--text2); margin-top:3px; line-height:1.5; }
+  .log-when { color:var(--text3); font-family:'JetBrains Mono',monospace; font-size:11px; margin-top:4px; }
+
+  /* RELATORIO */
+  .rel-card { background:var(--surface); border-radius:var(--radius); padding:16px; border:2px solid var(--border); margin-bottom:12px; }
+  .rel-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
+  .rel-name { font-size:14px; font-weight:800; color:var(--primary); }
+  .rel-period { font-size:12px; color:var(--text3); }
+  .rel-stats { display:flex; gap:16px; }
+  .rel-stat { text-align:center; }
+  .rel-stat-val { font-size:20px; font-weight:800; color:var(--accent-dark); font-family:'JetBrains Mono',monospace; }
+  .rel-stat-label { font-size:10px; color:var(--text3); }
+  .btn-rel { padding:9px 14px; border-radius:8px; border:none; cursor:pointer; font-family:inherit; font-size:12px; font-weight:800; transition:.2s; }
+  .btn-rel.print { background:var(--primary); color:var(--cream); border-bottom:2px solid var(--primary-dark); }
+  .btn-rel.print:hover { filter:brightness(1.1); }
+
+  /* TOAST */
+  .toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--primary); color:var(--cream); padding:12px 20px; border-radius:12px; font-size:13px; font-weight:700; z-index:9999; opacity:0; transition:.3s; white-space:nowrap; border-bottom:2px solid var(--accent-dark); max-width:90%; text-align:center; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  .empty-state { text-align:center; padding:40px 20px; color:var(--text3); }
+  .empty-state .es-icon { font-size:48px; margin-bottom:12px; }
+  .empty-state p { font-size:14px; }
+
+  #print-area { display:none; }
+  @media print {
+    body > * { display:none; }
+    #print-area { display:block !important; font-family:sans-serif; padding:20px; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="print-area"></div>
+<div class="toast" id="toast"></div>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, query, where, orderBy, updateDoc, onSnapshot, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBYUHlfsq-4J8ObO3O8ytbRQBjniRHCrm4",
+  authDomain: "bate-ponto-emporio.firebaseapp.com",
+  projectId: "bate-ponto-emporio",
+  storageBucket: "bate-ponto-emporio.firebasestorage.app",
+  messagingSenderId: "894411221970",
+  appId: "1:894411221970:web:62db400f2935ec1465f60b"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
+
+// ===== HELPERS =====
+let currentUser = null;
+let currentProfile = null;
+let currentScreen = 'ponto';
+let clockInterval = null;
+let geoCoords = null;
+
+function showToast(msg, dur=3500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur);
+}
+
+function formatDate(str) {
+  if (!str) return '';
+  const [y,m,d] = str.split('-');
+  return `${d}/${m}/${y}`;
+}
+function getToday() { return new Date().toISOString().split('T')[0]; }
+function getMonthStr() { return new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'}); }
+function tipoLabel(t) { return {entrada:'Entrada','inicio-intervalo':'Início de Intervalo','fim-intervalo':'Fim de Intervalo',saida:'Saída'}[t]||t; }
+function tipoEmoji(t) { return {entrada:'🌅','inicio-intervalo':'☕','fim-intervalo':'🔙',saida:'🌇'}[t]||'⚪'; }
+
+function requestGeo() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      p => { geoCoords = { lat: p.coords.latitude.toFixed(6), lng: p.coords.longitude.toFixed(6) }; },
+      () => { geoCoords = null; }
+    );
+  }
+}
+
+// ===== RENDER =====
+function renderLoading() {
+  document.getElementById('app').innerHTML = `<div class="loading-screen"><div class="loading-icon">🕐</div><div class="loading-text">Carregando...</div></div>`;
+}
+
+function renderLogin(error='') {
+  document.getElementById('app').innerHTML = `
+  <div class="login-screen">
+    <div class="login-sun"></div>
+    <div class="login-deco d1">🌾</div>
+    <div class="login-deco d2">🌾</div>
+    <div class="login-top">
+      <div class="login-logo-wrap">🕐</div>
+      <div class="login-title">BATE PONTO EMPÓRIO</div>
+      <div class="login-subtitle">Sistema de Controle de Jornada · Coisas da Roça</div>
+    </div>
+    <div class="login-ribbon"></div>
+    <div class="login-form-card">
+      <div class="login-form-title">🔐 Acesso ao Sistema</div>
+      ${error ? `<div class="login-error" style="display:block">${error}</div>` : ''}
+      <div class="form-group">
+        <label class="form-label">E-mail</label>
+        <input class="form-input" type="email" id="l-email" placeholder="seu@email.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Senha</label>
+        <input class="form-input" type="password" id="l-senha" placeholder="Sua senha">
+      </div>
+      <button class="btn-primary" id="btn-login" onclick="doLogin()">🌅 Entrar no Sistema</button>
+    </div>
+  </div>`;
+
+  document.getElementById('l-senha').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+}
+
+async function doLogin() {
+  const email = document.getElementById('l-email').value.trim();
+  const senha = document.getElementById('l-senha').value;
+  const btn = document.getElementById('btn-login');
+  if (!email || !senha) { renderLogin('⚠️ Preencha e-mail e senha.'); return; }
+  btn.disabled = true; btn.textContent = 'Entrando...';
+  try {
+    await signInWithEmailAndPassword(auth, email, senha);
+  } catch(e) {
+    renderLogin('⚠️ E-mail ou senha incorretos.');
+  }
+}
+
+window.doLogin = doLogin;
+
+// ===== AUTH STATE =====
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    currentUser = user;
+    renderLoading();
+    // Load profile from Firestore
+    const snap = await getDoc(doc(db, 'usuarios', user.uid));
+    if (snap.exists()) {
+      currentProfile = snap.data();
+      renderApp();
+    } else {
+      await signOut(auth);
+      renderLogin('⚠️ Perfil não encontrado. Contate o gerente.');
+    }
+  } else {
+    currentUser = null; currentProfile = null;
+    renderLogin();
+  }
+});
+
+// ===== RENDER APP =====
+function renderApp() {
+  const isG = currentProfile.tipo === 'gerente';
+  const navItems = isG
+    ? [['dashboard','📊','Dashboard'],['funcionarios','👥','Equipe'],['log','📋','Auditoria'],['cadastro','➕','Cadastrar']]
+    : [['ponto','🕐','Bater Ponto'],['historico','📅','Histórico'],['relatorio','📄','Relatório']];
+
+  document.getElementById('app').innerHTML = `
+    <div class="app-header">
+      <div class="header-logo">
+        <div class="header-icon">🕐</div>
+        <div>
+          <div class="header-name">${currentProfile.nome.split(' ').slice(0,2).join(' ')}</div>
+          <div class="header-role">${currentProfile.cargo}</div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="doLogout()">↩ Sair</button>
+    </div>
+    <div class="app-content" id="app-content">
+      <div class="screen active" id="screen-loading" style="display:flex;align-items:center;justify-content:center;min-height:200px">
+        <div style="text-align:center;color:var(--text3)"><div style="font-size:32px">⏳</div><div style="margin-top:8px;font-size:13px">Carregando dados...</div></div>
+      </div>
+    </div>
+    <nav class="app-nav">
+      ${navItems.map(([id,ic,lb]) => `<button class="nav-item" data-screen="${id}" onclick="showScreen('${id}')">
+        <span class="ni">${ic}</span><span>${lb}</span>
+      </button>`).join('')}
+    </nav>`;
+
+  startClock();
+  requestGeo();
+  const defaultScreen = isG ? 'dashboard' : 'ponto';
+  showScreen(defaultScreen);
+}
+
+window.doLogout = async () => { if(clockInterval) clearInterval(clockInterval); await signOut(auth); };
+
+// ===== NAVIGATION =====
+window.showScreen = async function(id) {
+  currentScreen = id;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.screen===id));
+  const content = document.getElementById('app-content');
+  content.innerHTML = `<div class="screen active" style="display:flex;align-items:center;justify-content:center;min-height:200px"><div style="text-align:center;color:var(--text3)"><div style="font-size:32px">⏳</div><div style="margin-top:8px;font-size:13px">Carregando...</div></div></div>`;
+
+  try {
+    let html = '';
+    if (id === 'ponto') html = await buildPontoScreen();
+    else if (id === 'historico') html = await buildHistoricoScreen(currentUser.uid);
+    else if (id === 'relatorio') html = await buildRelatorioScreen(currentUser.uid);
+    else if (id === 'dashboard') html = await buildDashboard();
+    else if (id === 'funcionarios') html = await buildFuncionariosScreen();
+    else if (id === 'log') html = await buildLogScreen();
+    else if (id === 'cadastro') html = buildCadastroScreen();
+    content.innerHTML = `<div class="screen active" id="screen-${id}">${html}</div>`;
+    startClock();
+  } catch(e) {
+    content.innerHTML = `<div class="screen active"><div class="empty-state"><div class="es-icon">⚠️</div><p>Erro ao carregar. Tente novamente.</p></div></div>`;
+    console.error(e);
+  }
+}
+
+// ===== CLOCK =====
+function startClock() {
+  if (clockInterval) clearInterval(clockInterval);
+  function tick() {
+    const cl = document.getElementById('clock');
+    const cd = document.getElementById('clock-date');
+    if (!cl) { clearInterval(clockInterval); return; }
+    const now = new Date();
+    cl.textContent = now.toLocaleTimeString('pt-BR');
+    if (cd) cd.textContent = now.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    const geo = document.getElementById('geo-status');
+    if (geo) geo.textContent = geoCoords ? `📍 ${geoCoords.lat}, ${geoCoords.lng}` : 'Localização não disponível';
+  }
+  tick(); clockInterval = setInterval(tick, 1000);
+}
+
+// ===== FIRESTORE HELPERS =====
+async function getUserTodayRecords(uid) {
+  const today = getToday();
+  const q = query(collection(db,'registros'), where('userId','==',uid), where('data','==',today), orderBy('timestamp','asc'));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({id:d.id,...d.data()}));
+}
+
+async function getUserStatus(uid) {
+  const recs = await getUserTodayRecords(uid);
+  const tipos = recs.map(r=>r.tipo);
+  if (tipos.includes('saida')) return 'saida';
+  if (tipos.includes('fim-intervalo')) return 'fim-intervalo';
+  if (tipos.includes('inicio-intervalo')) return 'inicio-intervalo';
+  if (tipos.includes('entrada')) return 'entrada';
+  return 'none';
+}
+
+async function nextPontoType(uid) {
+  const seq = ['entrada','inicio-intervalo','fim-intervalo','saida'];
+  const status = await getUserStatus(uid);
+  const idx = seq.indexOf(status);
+  if (idx === -1) return 'entrada';
+  if (idx === seq.length-1) return null;
+  return seq[idx+1];
+}
+
+function calcHorasFromRecs(recs) {
+  const e = recs.find(r=>r.tipo==='entrada'), s = recs.find(r=>r.tipo==='saida');
+  const ii = recs.find(r=>r.tipo==='inicio-intervalo'), fi = recs.find(r=>r.tipo==='fim-intervalo');
+  if (!e || !s) return null;
+  let total = s.timestamp - e.timestamp;
+  if (ii && fi) total -= (fi.timestamp - ii.timestamp);
+  return total / 3600000;
+}
+
+async function calcMonthStats(uid) {
+  const now = new Date(); const month = now.getMonth(); const year = now.getFullYear();
+  const q = query(collection(db,'registros'), where('userId','==',uid), orderBy('timestamp','asc'));
+  const snap = await getDocs(q);
+  const recs = snap.docs.map(d=>({id:d.id,...d.data()}));
+  const days = {};
+  recs.forEach(r=>{
+    const d = new Date(r.data+'T12:00:00');
+    if(d.getMonth()===month && d.getFullYear()===year) {
+      if(!days[r.data]) days[r.data]=[];
+      days[r.data].push(r);
+    }
+  });
+  const profile = await getDoc(doc(db,'usuarios',uid));
+  const jornada = profile.exists() ? (profile.data().jornada||8) : 8;
+  let totalH=0, diasTrab=0, extras=0;
+  Object.keys(days).forEach(d=>{
+    const h = calcHorasFromRecs(days[d]);
+    if(h!==null){ diasTrab++; totalH+=h; if(h>jornada) extras+=h-jornada; }
+  });
+  return { totalH:totalH.toFixed(1), diasTrab, extras:extras.toFixed(1) };
+}
+
+// ===== PONTO SCREEN =====
+async function buildPontoScreen() {
+  const status = await getUserStatus(currentUser.uid);
+  const next = await nextPontoType(currentUser.uid);
+  const statusInfo = {
+    none: {icon:'☕',label:'Aguardando Entrada',sub:'Clique em Entrada para começar',bg:'#fef8ea'},
+    entrada: {icon:'🟢',label:'Em Serviço',sub:'Trabalhando normalmente',bg:'#eaf6f0'},
+    'inicio-intervalo': {icon:'🟡',label:'Em Intervalo',sub:'Aproveite o descanso',bg:'#fef3e8'},
+    'fim-intervalo': {icon:'🟤',label:'Retornou do Intervalo',sub:'De volta ao trabalho',bg:'#fef8ea'},
+    saida: {icon:'🔴',label:'Jornada Encerrada',sub:'Até amanhã! Bom descanso 🌾',bg:'#fdecea'},
+  };
+  const si = statusInfo[status]||statusInfo.none;
+  const types = [
+    {t:'entrada',ic:'🌅',label:'Entrada',enabled:next==='entrada'},
+    {t:'inicio-intervalo',ic:'☕',label:'Início\nIntervalo',enabled:next==='inicio-intervalo'},
+    {t:'fim-intervalo',ic:'🔙',label:'Fim\nIntervalo',enabled:next==='fim-intervalo'},
+    {t:'saida',ic:'🌇',label:'Saída',enabled:next==='saida'},
+  ];
+  return `
+    <div class="datetime-card">
+      <div class="dt-deco">● BATE PONTO EMPÓRIO ●</div>
+      <div class="dt-time" id="clock">--:--:--</div>
+      <div class="dt-date" id="clock-date"></div>
+    </div>
+    <div class="status-card">
+      <div class="status-icon" style="background:${si.bg}">${si.icon}</div>
+      <div>
+        <div class="status-text-main">${si.label}</div>
+        <div class="status-text-sub">${si.sub}</div>
+      </div>
+    </div>
+    <div class="ponto-btns">
+      ${types.map(tp=>`
+        <button class="btn-ponto ${tp.t}" ${!tp.enabled?'disabled':''} onclick="registrarPonto('${tp.t}')">
+          <span class="bp-icon">${tp.ic}</span>
+          <span style="white-space:pre-line;text-align:center">${tp.label}</span>
+        </button>
+      `).join('')}
+    </div>
+    <div class="geo-info"><span id="geo-status">Obtendo localização...</span></div>`;
+}
+
+window.registrarPonto = async function(tipo) {
+  // Disable all buttons
+  document.querySelectorAll('.btn-ponto').forEach(b=>b.disabled=true);
+  showToast('⏳ Registrando...');
+  try {
+    const now = new Date();
+    const rec = {
+      userId: currentUser.uid,
+      userName: currentProfile.nome,
+      tipo,
+      data: now.toISOString().split('T')[0],
+      hora: now.toTimeString().slice(0,8),
+      timestamp: now.getTime(),
+      lat: geoCoords ? geoCoords.lat : null,
+      lng: geoCoords ? geoCoords.lng : null,
+      editado: false,
+      criadoEm: serverTimestamp(),
+    };
+    await addDoc(collection(db,'registros'), rec);
+    await addDoc(collection(db,'auditLog'), {
+      quem: currentProfile.nome,
+      quemId: currentUser.uid,
+      acao: `Registrou ponto: ${tipoLabel(tipo)}`,
+      detalhes: `${rec.data} às ${rec.hora}`,
+      tipo: 'registro',
+      quando: now.toISOString(),
+      criadoEm: serverTimestamp(),
+    });
+    showToast(`✅ ${tipoLabel(tipo)} registrada às ${rec.hora}`);
+    await showScreen('ponto');
+  } catch(e) {
+    showToast('❌ Erro ao registrar. Tente novamente.');
+    console.error(e);
+  }
+}
+
+// ===== HISTORICO =====
+async function buildHistoricoScreen(uid) {
+  const q = query(collection(db,'registros'), where('userId','==',uid), orderBy('timestamp','desc'));
+  const snap = await getDocs(q);
+  const recs = snap.docs.map(d=>({id:d.id,...d.data()}));
+  const stats = await calcMonthStats(uid);
+  const days = {};
+  recs.forEach(r=>{ if(!days[r.data]) days[r.data]=[]; days[r.data].push(r); });
+
+  return `
+    <div class="summary-card">
+      <div class="sum-item"><div class="sum-val">${stats.diasTrab}</div><div class="sum-label">Dias</div></div>
+      <div class="sum-item"><div class="sum-val">${stats.totalH}h</div><div class="sum-label">Horas</div></div>
+      <div class="sum-item"><div class="sum-val">${stats.extras}h</div><div class="sum-label">Extras</div></div>
+    </div>
+    <div class="section-title">Registros do Mês</div>
+    ${Object.keys(days).sort((a,b)=>b.localeCompare(a)).map(day=>`
+      <div class="hist-day-group">
+        <div class="hist-day-label">${formatDate(day)}${day===getToday()?' · Hoje':''}</div>
+        ${days[day].sort((a,b)=>a.timestamp-b.timestamp).map(r=>`
+          <div class="hist-entry">
+            <div class="hist-dot ${r.tipo}">${tipoEmoji(r.tipo)}</div>
+            <div style="flex:1">
+              <div class="hist-type">${tipoLabel(r.tipo)}</div>
+              <div class="hist-time">${r.hora}</div>
+              ${r.editado?`<div class="hist-edited">✏️ Editado pelo gerente</div>`:''}
+              ${r.lat?`<div style="font-size:10px;color:var(--text3)">📍 ${r.lat}, ${r.lng}</div>`:''}
+            </div>
+          </div>`).join('')}
+      </div>`).join('')}
+    ${Object.keys(days).length===0?'<div class="empty-state"><div class="es-icon">📅</div><p>Nenhum registro ainda</p></div>':''}`;
+}
+
+// ===== RELATORIO =====
+async function buildRelatorioScreen(uid) {
+  const profSnap = await getDoc(doc(db,'usuarios',uid));
+  const prof = profSnap.exists() ? profSnap.data() : currentProfile;
+  const stats = await calcMonthStats(uid);
+  const now = new Date(); const month=now.getMonth(); const year=now.getFullYear();
+  const q = query(collection(db,'registros'), where('userId','==',uid), orderBy('timestamp','asc'));
+  const snap = await getDocs(q);
+  const recs = snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>{
+    const d=new Date(r.data+'T12:00:00'); return d.getMonth()===month&&d.getFullYear()===year;
+  });
+  const days = {};
+  recs.forEach(r=>{ if(!days[r.data]) days[r.data]=[]; days[r.data].push(r); });
+
+  return `
+    <div class="section-title">📄 Relatório Mensal</div>
+    <div class="rel-card">
+      <div class="rel-header">
+        <div>
+          <div class="rel-name">${prof.nome}</div>
+          <div class="rel-period">${getMonthStr()} · ${prof.cargo}</div>
+        </div>
+        <button class="btn-rel print" onclick="printRelatorio('${uid}')">🖨️ Imprimir</button>
+      </div>
+      <div class="rel-stats">
+        <div class="rel-stat"><div class="rel-stat-val">${stats.diasTrab}</div><div class="rel-stat-label">Dias</div></div>
+        <div class="rel-stat"><div class="rel-stat-val">${stats.totalH}h</div><div class="rel-stat-label">Trabalhadas</div></div>
+        <div class="rel-stat"><div class="rel-stat-val">${stats.extras}h</div><div class="rel-stat-label">Extras</div></div>
+      </div>
+    </div>
+    <div class="section-title">Registros do Mês</div>
+    ${Object.keys(days).sort().map(d=>{
+      const h=calcHorasFromRecs(days[d]);
+      return `<div class="hist-day-group">
+        <div class="hist-day-label">${formatDate(d)}${h!==null?` · ${h.toFixed(1)}h`:''}${d===getToday()?' · Hoje':''}</div>
+        ${days[d].sort((a,b)=>a.timestamp-b.timestamp).map(r=>`
+          <div class="hist-entry">
+            <div class="hist-dot ${r.tipo}">${tipoEmoji(r.tipo)}</div>
+            <div><div class="hist-type">${tipoLabel(r.tipo)}</div><div class="hist-time">${r.hora}</div>${r.editado?`<div class="hist-edited">✏️ Editado</div>`:''}</div>
+          </div>`).join('')}
+      </div>`;
+    }).join('')}
+    ${Object.keys(days).length===0?'<div class="empty-state"><div class="es-icon">📋</div><p>Sem registros este mês</p></div>':''}`;
+}
+
+window.printRelatorio = async function(uid) {
+  const profSnap = await getDoc(doc(db,'usuarios',uid));
+  const prof = profSnap.exists() ? profSnap.data() : currentProfile;
+  const stats = await calcMonthStats(uid);
+  const now = new Date(); const month=now.getMonth(); const year=now.getFullYear();
+  const q = query(collection(db,'registros'), where('userId','==',uid), orderBy('timestamp','asc'));
+  const snap = await getDocs(q);
+  const recs = snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>{
+    const d=new Date(r.data+'T12:00:00'); return d.getMonth()===month&&d.getFullYear()===year;
+  });
+  const days={};
+  recs.forEach(r=>{ if(!days[r.data]) days[r.data]=[]; days[r.data].push(r); });
+  let rows='';
+  Object.keys(days).sort().forEach(d=>{
+    const h=calcHorasFromRecs(days[d]);
+    rows+=`<tr><td colspan="3" style="background:#fef8ea;font-weight:700;padding:6px 8px;border-top:2px solid #e8d4a8">${formatDate(d)}${h!==null?' — '+h.toFixed(1)+'h':''}</td></tr>`;
+    days[d].sort((a,b)=>a.timestamp-b.timestamp).forEach(r=>{
+      rows+=`<tr><td style="padding:5px 8px">${tipoLabel(r.tipo)}</td><td style="padding:5px 8px;font-family:monospace">${r.hora}</td><td style="padding:5px 8px;font-size:11px;color:#a07840">${r.editado?'✏️ Editado pelo gerente':''}</td></tr>`;
+    });
+  });
+  document.getElementById('print-area').innerHTML=`
+    <div style="max-width:700px;margin:0 auto;font-family:sans-serif">
+      <div style="text-align:center;margin-bottom:20px;padding-bottom:16px;border-bottom:3px solid #4a2010">
+        <div style="font-size:28px;margin-bottom:6px">🕐</div>
+        <h1 style="color:#4a2010;font-size:20px;margin:0">BATE PONTO EMPÓRIO</h1>
+        <h2 style="color:#6b4520;font-size:14px;font-weight:400;margin:4px 0 0">Empório Coisas da Roça · Relatório de Ponto — ${getMonthStr()}</h2>
+      </div>
+      <table style="width:100%;margin-bottom:16px;border-collapse:collapse;font-size:13px">
+        <tr><td style="padding:5px 8px;width:50%"><strong>Funcionário:</strong> ${prof.nome}</td><td><strong>CPF:</strong> ${prof.cpf||'—'}</td></tr>
+        <tr><td style="padding:5px 8px"><strong>Cargo:</strong> ${prof.cargo}</td><td><strong>Admissão:</strong> ${formatDate(prof.admissao)||'—'}</td></tr>
+        <tr><td style="padding:5px 8px"><strong>Jornada:</strong> ${prof.jornada||8}h/dia</td><td><strong>Dias trabalhados:</strong> ${stats.diasTrab}</td></tr>
+        <tr style="background:#fef8ea"><td style="padding:5px 8px"><strong>Total de horas:</strong> ${stats.totalH}h</td><td><strong>Horas extras:</strong> ${stats.extras}h</td></tr>
+      </table>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e8d4a8;font-size:13px">
+        <thead><tr style="background:#4a2010;color:#f5e8c0"><th style="padding:8px;text-align:left">Tipo</th><th style="padding:8px;text-align:left">Horário</th><th style="padding:8px;text-align:left">Obs</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="margin-top:60px;display:flex;justify-content:space-between">
+        <div style="text-align:center;width:220px"><div style="border-top:1px solid #333;padding-top:8px;font-size:13px">Assinatura do Funcionário</div><div style="font-size:11px;color:#666;margin-top:4px">${prof.nome}</div></div>
+        <div style="text-align:center;width:220px"><div style="border-top:1px solid #333;padding-top:8px;font-size:13px">Assinatura do Responsável</div><div style="font-size:11px;color:#666;margin-top:4px">Empório Coisas da Roça</div></div>
+      </div>
+      <p style="font-size:10px;color:#a07840;text-align:center;margin-top:30px">Gerado em ${new Date().toLocaleString('pt-BR')} · Bate Ponto Empório</p>
+    </div>`;
+  window.print();
+}
+
+// ===== DASHBOARD =====
+async function buildDashboard() {
+  const usersSnap = await getDocs(query(collection(db,'usuarios'), where('tipo','==','funcionario'), where('status','==','ativo')));
+  const users = usersSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const hora = new Date().getHours();
+  const alerts = [];
+  const cards = [];
+
+  for (const u of users) {
+    const status = await getUserStatus(u.id);
+    const stats = await calcMonthStats(u.id);
+    const recs = await getUserTodayRecords(u.id);
+
+    if (hora>=9 && status==='none') alerts.push({tipo:'danger',msg:`${u.nome} não bateu ponto hoje`,sub:'Ausência não justificada'});
+    else if (status==='inicio-intervalo') {
+      const iniInt = recs.find(r=>r.tipo==='inicio-intervalo');
+      if (iniInt && (Date.now()-iniInt.timestamp)>90*60000) alerts.push({tipo:'warn',msg:`${u.nome} em intervalo há mais de 1h30`,sub:'Verificar retorno'});
+    }
+    if (status==='saida') alerts.push({tipo:'success',msg:`${u.nome} encerrou a jornada`,sub:'Todos os registros corretos ✅'});
+
+    const sm = {none:{badge:'gray',label:'Sem registro'},entrada:{badge:'ok',label:'Em serviço'},'inicio-intervalo':{badge:'warn',label:'Em intervalo'},'fim-intervalo':{badge:'ok',label:'Pós-intervalo'},saida:{badge:'ok',label:'Encerrado'}}[status]||{badge:'gray',label:'?'};
+    cards.push(`<div class="func-card" onclick="openFuncDetail('${u.id}')">
+      <div class="func-card-top">
+        <div class="func-avatar">${u.nome[0]}</div>
+        <div style="flex:1"><div class="func-name">${u.nome}</div><div class="func-role">${u.cargo}</div></div>
+        <span class="badge ${sm.badge}">${sm.label}</span>
+      </div>
+      <div class="func-badges">
+        <span class="badge gray">📅 ${stats.diasTrab} dias</span>
+        <span class="badge gray">⏱ ${stats.totalH}h</span>
+        ${parseFloat(stats.extras)>0?`<span class="badge warn">+${stats.extras}h ext.</span>`:''}
+        <span class="badge gray">Hoje: ${recs.length} reg.</span>
+      </div>
+    </div>`);
+  }
+
+  return `
+    <div class="section-title">Dashboard — ${new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})}</div>
+    ${alerts.length===0
+      ?`<div class="alert-card success"><span class="alert-icon">✅</span><div class="alert-text"><strong>Tudo certo!</strong><span>Aguarde os funcionários iniciarem a jornada.</span></div></div>`
+      :alerts.map(a=>`<div class="alert-card ${a.tipo}"><span class="alert-icon">${a.tipo==='danger'?'🚨':a.tipo==='warn'?'⚠️':'✅'}</span><div class="alert-text"><strong>${a.msg}</strong><span>${a.sub}</span></div></div>`).join('')}
+    <div class="section-title" style="margin-top:16px">Status da Equipe</div>
+    ${cards.join('')}
+    ${cards.length===0?'<div class="empty-state"><div class="es-icon">👥</div><p>Nenhum funcionário ativo cadastrado</p></div>':''}`;
+}
+
+// ===== FUNCIONARIOS =====
+async function buildFuncionariosScreen() {
+  const snap = await getDocs(query(collection(db,'usuarios'), where('tipo','==','funcionario')));
+  const users = snap.docs.map(d=>({id:d.id,...d.data()}));
+  return `
+    <div class="section-title">👥 Equipe</div>
+    ${users.map(u=>`
+      <div class="func-card" onclick="openFuncDetail('${u.id}')">
+        <div class="func-card-top">
+          <div class="func-avatar">${u.nome[0]}</div>
+          <div style="flex:1"><div class="func-name">${u.nome}</div><div class="func-role">${u.cargo} · ${u.cpf||'—'}</div></div>
+          <span class="badge ${u.status==='ativo'?'ok':'gray'}">${u.status}</span>
+        </div>
+        <div class="func-badges">
+          <span class="badge gray">📅 ${formatDate(u.admissao)||'—'}</span>
+          <span class="badge gray">⏱ ${u.jornada||8}h/dia</span>
+        </div>
+      </div>`).join('')}
+    ${users.length===0?'<div class="empty-state"><div class="es-icon">👥</div><p>Nenhum funcionário cadastrado</p></div>':''}`;
+}
+
+// ===== LOG =====
+async function buildLogScreen() {
+  const q = query(collection(db,'auditLog'), orderBy('criadoEm','desc'));
+  const snap = await getDocs(q);
+  const logs = snap.docs.map(d=>({id:d.id,...d.data()}));
+  return `
+    <div class="section-title">📋 Log de Auditoria</div>
+    ${logs.length===0?'<div class="empty-state"><div class="es-icon">📋</div><p>Nenhuma ação registrada ainda</p></div>':
+      logs.slice(0,80).map(l=>`<div class="log-entry">
+        <div class="log-who">${l.quem}</div>
+        <div class="log-what">${l.acao}${l.justificativa?` — <em>"${l.justificativa}"</em>`:''}</div>
+        <div class="log-when">${new Date(l.quando).toLocaleString('pt-BR')}</div>
+      </div>`).join('')}`;
+}
+
+// ===== CADASTRO =====
+function buildCadastroScreen() {
+  return `
+    <div class="section-title">➕ Cadastrar Funcionário</div>
+    <div class="form-group"><label class="form-label">Nome Completo</label><input class="form-input" id="c-nome" placeholder="Nome completo"></div>
+    <div class="form-group"><label class="form-label">E-mail (para login)</label><input class="form-input" type="email" id="c-email" placeholder="email@exemplo.com"></div>
+    <div class="form-group"><label class="form-label">Senha inicial</label><input class="form-input" type="password" id="c-senha" placeholder="Mínimo 6 caracteres"></div>
+    <div class="form-group"><label class="form-label">CPF</label><input class="form-input" id="c-cpf" placeholder="000.000.000-00"></div>
+    <div class="form-group"><label class="form-label">Cargo</label><input class="form-input" id="c-cargo" placeholder="Ex: Atendente"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Tipo</label>
+        <select class="form-select" id="c-tipo"><option value="funcionario">Funcionário</option><option value="gerente">Gerente</option></select>
+      </div>
+      <div class="form-group"><label class="form-label">Jornada (h)</label>
+        <input class="form-input" id="c-jornada" type="number" value="8" min="1" max="12">
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">Data de Admissão</label><input class="form-input" id="c-admissao" type="date"></div>
+    <button class="btn-primary" id="btn-cadastrar" onclick="cadastrarFunc()">🌾 Cadastrar Funcionário</button>`;
+}
+
+window.cadastrarFunc = async function() {
+  const nome = document.getElementById('c-nome').value.trim();
+  const email = document.getElementById('c-email').value.trim();
+  const senha = document.getElementById('c-senha').value;
+  const cpf = document.getElementById('c-cpf').value.trim();
+  const cargo = document.getElementById('c-cargo').value.trim();
+  const tipo = document.getElementById('c-tipo').value;
+  const jornada = parseInt(document.getElementById('c-jornada').value)||8;
+  const admissao = document.getElementById('c-admissao').value;
+  if (!nome||!email||!senha||!cargo) { showToast('⚠️ Preencha todos os campos obrigatórios!'); return; }
+  if (senha.length < 6) { showToast('⚠️ Senha deve ter pelo menos 6 caracteres!'); return; }
+  const btn = document.getElementById('btn-cadastrar');
+  btn.disabled=true; btn.textContent='Cadastrando...';
+  try {
+    // Save current user before creating new one
+    const adminUser = auth.currentUser;
+    const cred = await createUserWithEmailAndPassword(auth, email, senha);
+    const newUid = cred.user.uid;
+    await setDoc(doc(db,'usuarios',newUid), { nome, email, cpf, cargo, tipo, jornada, admissao, status:'ativo', criadoEm: serverTimestamp() });
+    await addDoc(collection(db,'auditLog'), { quem:currentProfile.nome, quemId:currentUser.uid, acao:`Cadastrou funcionário: ${nome} (${cargo})`, quando:new Date().toISOString(), tipo:'cadastro', criadoEm:serverTimestamp() });
+    // Sign back in as admin
+    showToast(`✅ ${nome} cadastrado! Refazendo login...`);
+    // The auth will change, so we need to handle re-login
+    setTimeout(()=>{ showToast('⚠️ Faça login novamente para continuar.'); }, 2000);
+  } catch(e) {
+    btn.disabled=false; btn.textContent='🌾 Cadastrar Funcionário';
+    if (e.code==='auth/email-already-in-use') showToast('⚠️ E-mail já cadastrado!');
+    else { showToast('❌ Erro ao cadastrar: '+e.message); console.error(e); }
+  }
+}
+
+// ===== MODAL FUNC DETAIL =====
+window.openFuncDetail = async function(uid) {
+  const profSnap = await getDoc(doc(db,'usuarios',uid));
+  if (!profSnap.exists()) return;
+  const user = profSnap.data();
+  const recs = await getUserTodayRecords(uid);
+
+  const overlay = document.createElement('div');
+  overlay.className='modal-overlay'; overlay.id='modal-overlay';
+  overlay.onclick = e => { if(e.target===overlay) closeModal(); };
+  overlay.innerHTML=`<div class="modal-box">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">
+      <div class="modal-title">${user.nome}</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:16px">${user.cargo} · ${user.cpf||'—'} · Admissão: ${formatDate(user.admissao)||'—'}</div>
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn-rel print" onclick="closeModal();printRelatorio('${uid}')">📄 Relatório</button>
+      <button class="btn-rel" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text2)" onclick="toggleStatus('${uid}','${user.status}')">
+        ${user.status==='ativo'?'🔒 Desativar':'🔓 Ativar'}
+      </button>
+    </div>
+    <div style="font-size:13px;font-weight:800;color:var(--primary);margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--border)">📍 Registros de Hoje</div>
+    ${recs.length===0?'<p style="color:var(--text3);font-size:13px;text-align:center;padding:16px">Nenhum registro hoje.</p>':
+      recs.map(r=>`<div class="detail-entry">
+        <span class="de-icon">${tipoEmoji(r.tipo)}</span>
+        <div class="de-info">
+          <div class="de-type">${tipoLabel(r.tipo)}</div>
+          <div class="de-time">${r.hora}${r.editado?' · ✏️ Editado':''}</div>
+          ${r.lat?`<div style="font-size:10px;color:var(--text3)">📍 ${r.lat}, ${r.lng}</div>`:''}
+        </div>
+        <button class="de-edit" onclick="editRecord('${r.id}','${r.hora}','${r.tipo}')">✏️ Editar</button>
+      </div>`).join('')}
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
+window.toggleStatus = async function(uid, currentStatus) {
+  const newStatus = currentStatus==='ativo'?'inativo':'ativo';
+  await updateDoc(doc(db,'usuarios',uid), {status:newStatus});
+  await addDoc(collection(db,'auditLog'), { quem:currentProfile.nome, quemId:currentUser.uid, acao:`Alterou status do funcionário para: ${newStatus}`, quando:new Date().toISOString(), tipo:'status', criadoEm:serverTimestamp() });
+  closeModal();
+  showToast(`Status atualizado: ${newStatus}`);
+  showScreen(currentScreen);
+}
+
+window.editRecord = function(recordId, horaAtual, tipo) {
+  closeModal();
+  const overlay = document.createElement('div');
+  overlay.className='modal-overlay'; overlay.id='modal-overlay';
+  overlay.onclick = e => { if(e.target===overlay) closeModal(); };
+  overlay.innerHTML=`<div class="modal-box">
+    <div style="display:flex;justify-content:space-between;margin-bottom:16px">
+      <div class="modal-title">✏️ Editar Registro</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px;border:1.5px solid var(--border)">
+      <strong>${tipoLabel(tipo)}</strong> — atualmente ${horaAtual}
+    </div>
+    <div class="form-group"><label class="form-label">Novo Horário</label>
+      <input class="form-input" type="time" id="edit-hora" value="${horaAtual.slice(0,5)}" step="60">
+    </div>
+    <div class="form-group"><label class="form-label">⚠️ Justificativa (obrigatória)</label>
+      <textarea class="form-input" id="edit-just" placeholder="Descreva o motivo da alteração..."></textarea>
+    </div>
+    <button class="btn-primary" onclick="saveEdit('${recordId}','${tipo}','${horaAtual}')">Salvar com Justificativa</button>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
+window.saveEdit = async function(recordId, tipo, horaOld) {
+  const novaHora = document.getElementById('edit-hora').value;
+  const just = document.getElementById('edit-just').value.trim();
+  if (!just) { showToast('⚠️ Justificativa é obrigatória!'); return; }
+  const [h,m] = novaHora.split(':').map(Number);
+  const recRef = doc(db,'registros',recordId);
+  const recSnap = await getDoc(recRef);
+  if (!recSnap.exists()) return;
+  const recData = recSnap.data();
+  const d = new Date(recData.data+'T00:00:00'); d.setHours(h,m,0,0);
+  await updateDoc(recRef, { hora:novaHora+':00', timestamp:d.getTime(), editado:true, editadoPor:currentUser.uid, editadoEm:new Date().toISOString(), justificativa:just });
+  await addDoc(collection(db,'auditLog'), { quem:currentProfile.nome, quemId:currentUser.uid, acao:`Editou registro de ${tipoLabel(tipo)}: ${horaOld} → ${novaHora}:00`, justificativa:just, quando:new Date().toISOString(), tipo:'edicao', criadoEm:serverTimestamp() });
+  closeModal();
+  showToast('✅ Registro atualizado com justificativa!');
+  showScreen(currentScreen);
+}
+
+window.closeModal = function() { const m=document.getElementById('modal-overlay'); if(m) m.remove(); }
+
+// ===== INIT =====
+renderLoading();
+requestGeo();
+</script>
+</body>
+</html>
