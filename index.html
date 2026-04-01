@@ -624,11 +624,13 @@ async function buildHistoricoScreen(uid) {
 }
 
 // ===== RELATORIO =====
-async function buildRelatorioScreen(uid) {
+async function buildRelatorioScreen(uid, mesOffset=0) {
   const profSnap = await getDoc(doc(db,'usuarios',uid));
   const prof = profSnap.exists() ? profSnap.data() : currentProfile;
-  const stats = await calcMonthStats(uid);
-  const now = new Date(); const month=now.getMonth(); const year=now.getFullYear();
+  const now = new Date();
+  const targetDate = new Date(now.getFullYear(), now.getMonth()+mesOffset, 1);
+  const month = targetDate.getMonth(); const year = targetDate.getFullYear();
+  const nomeMes = targetDate.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
   const q = query(collection(db,'registros'), where('userId','==',uid), orderBy('timestamp','asc'));
   const snap = await getDocs(q);
   const recs = snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>{
@@ -636,80 +638,187 @@ async function buildRelatorioScreen(uid) {
   });
   const days = {};
   recs.forEach(r=>{ if(!days[r.data]) days[r.data]=[]; days[r.data].push(r); });
-
-  return `
-    <div class="section-title">📄 Relatório Mensal</div>
-    <div class="rel-card">
-      <div class="rel-header">
-        <div>
-          <div class="rel-name">${prof.nome}</div>
-          <div class="rel-period">${getMonthStr()} · ${prof.cargo}</div>
-        </div>
-        <button class="btn-rel print" onclick="printRelatorio('${uid}')">🖨️ Imprimir</button>
-      </div>
-      <div class="rel-stats">
-        <div class="rel-stat"><div class="rel-stat-val">${stats.diasTrab}</div><div class="rel-stat-label">Dias</div></div>
-        <div class="rel-stat"><div class="rel-stat-val">${stats.totalH}h</div><div class="rel-stat-label">Trabalhadas</div></div>
-        <div class="rel-stat"><div class="rel-stat-val">${stats.extras}h</div><div class="rel-stat-label">Extras</div></div>
-      </div>
-    </div>
-    <div class="section-title">Registros do Mês</div>
-    ${Object.keys(days).sort().map(d=>{
+  let totalH=0; let extras=0; const jornada=prof.jornada||8;
+  Object.keys(days).forEach(d=>{ const h=calcHorasFromRecs(days[d]); if(h!==null){totalH+=h; if(h>jornada) extras+=h-jornada;} });
+  const uid2=uid; const mo=mesOffset;
+  return (
+    '<div class="section-title">📄 Relatório Mensal</div>' +
+    '<div class="rel-card">' +
+      '<div class="rel-header">' +
+        '<div>' +
+          '<div class="rel-name">'+prof.nome+'</div>' +
+          '<div class="rel-period" style="text-transform:capitalize">'+nomeMes+' · '+prof.cargo+'</div>' +
+        '</div>' +
+        '<button class="btn-rel print" onclick="printRelatorio(\'' + uid2 + '\',' + mo + ')">🖨️ Imprimir</button>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:12px">' +
+        '<button class="btn-rel" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);flex:1" onclick="changeRelMes(\'' + uid2 + '\',' + (mo-1) + ')">← Mês anterior</button>' +
+        '<button class="btn-rel" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);flex:1;' + (mo>=0?'opacity:.4':'') + '" ' + (mo>=0?'disabled':'') + ' onclick="changeRelMes(\'' + uid2 + '\',' + (mo+1) + ')">Próximo →</button>' +
+      '</div>' +
+      '<div class="rel-stats">' +
+        '<div class="rel-stat"><div class="rel-stat-val">'+Object.keys(days).length+'</div><div class="rel-stat-label">Dias</div></div>' +
+        '<div class="rel-stat"><div class="rel-stat-val">'+totalH.toFixed(1)+'h</div><div class="rel-stat-label">Trabalhadas</div></div>' +
+        '<div class="rel-stat"><div class="rel-stat-val">'+extras.toFixed(1)+'h</div><div class="rel-stat-label">Extras</div></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="section-title">Registros do Mês</div>' +
+    (Object.keys(days).sort().map(function(d){
       const h=calcHorasFromRecs(days[d]);
-      return `<div class="hist-day-group">
-        <div class="hist-day-label">${formatDate(d)}${h!==null?` · ${h.toFixed(1)}h`:''}${d===getToday()?' · Hoje':''}</div>
-        ${days[d].sort((a,b)=>a.timestamp-b.timestamp).map(r=>`
-          <div class="hist-entry">
-            <div class="hist-dot ${r.tipo}">${tipoEmoji(r.tipo)}</div>
-            <div><div class="hist-type">${tipoLabel(r.tipo)}</div><div class="hist-time">${r.hora}</div>${r.editado?`<div class="hist-edited">✏️ Editado</div>`:''}</div>
-          </div>`).join('')}
-      </div>`;
-    }).join('')}
-    ${Object.keys(days).length===0?'<div class="empty-state"><div class="es-icon">📋</div><p>Sem registros este mês</p></div>':''}`;
+      return '<div class="hist-day-group">' +
+        '<div class="hist-day-label">'+formatDate(d)+(h!==null?' · '+h.toFixed(1)+'h':'')+(d===getToday()?' · Hoje':'')+'</div>' +
+        days[d].sort(function(a,b){return a.timestamp-b.timestamp;}).map(function(r){
+          return '<div class="hist-entry">' +
+            '<div class="hist-dot '+r.tipo+'">'+tipoEmoji(r.tipo)+'</div>' +
+            '<div><div class="hist-type">'+tipoLabel(r.tipo)+'</div><div class="hist-time">'+r.hora+'</div>'+(r.editado?'<div class="hist-edited">✏️ Editado</div>':'')+'</div>' +
+          '</div>';
+        }).join('') +
+      '</div>';
+    }).join('')) +
+    (Object.keys(days).length===0?'<div class="empty-state"><div class="es-icon">📋</div><p>Sem registros neste mês</p></div>':'')
+  );
 }
 
-window.printRelatorio = async function(uid) {
+window.changeRelMes = async function(uid, offset) {
+  const content = document.getElementById('app-content');
+  content.innerHTML = '<div class="screen active" style="display:flex;align-items:center;justify-content:center;min-height:200px"><div style="text-align:center;color:var(--text3)"><div style="font-size:32px">⏳</div><div style="margin-top:8px;font-size:13px">Carregando...</div></div></div>';
+  const html = await buildRelatorioScreen(uid, offset);
+  content.innerHTML = '<div class="screen active" id="screen-relatorio">'+html+'</div>';
+}
+
+
+window.printRelatorio = async function(uid, mesOffset=0) {
   const profSnap = await getDoc(doc(db,'usuarios',uid));
   const prof = profSnap.exists() ? profSnap.data() : currentProfile;
-  const stats = await calcMonthStats(uid);
-  const now = new Date(); const month=now.getMonth(); const year=now.getFullYear();
+  const now = new Date();
+  const targetDate = new Date(now.getFullYear(), now.getMonth() + mesOffset, 1);
+  const month = targetDate.getMonth();
+  const year = targetDate.getFullYear();
+  const diasNoMes = new Date(year, month+1, 0).getDate();
+  const nomeMes = targetDate.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  const periodoInicio = `01/${String(month+1).padStart(2,'0')}/${year}`;
+  const periodoFim = `${diasNoMes}/${String(month+1).padStart(2,'0')}/${year}`;
+
   const q = query(collection(db,'registros'), where('userId','==',uid), orderBy('timestamp','asc'));
   const snap = await getDocs(q);
   const recs = snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>{
-    const d=new Date(r.data+'T12:00:00'); return d.getMonth()===month&&d.getFullYear()===year;
+    const d=new Date(r.data+'T12:00:00'); return d.getMonth()===month && d.getFullYear()===year;
   });
   const days={};
   recs.forEach(r=>{ if(!days[r.data]) days[r.data]=[]; days[r.data].push(r); });
-  let rows='';
-  Object.keys(days).sort().forEach(d=>{
-    const h=calcHorasFromRecs(days[d]);
-    rows+=`<tr><td colspan="3" style="background:#fef8ea;font-weight:700;padding:6px 8px;border-top:2px solid #e8d4a8">${formatDate(d)}${h!==null?' — '+h.toFixed(1)+'h':''}</td></tr>`;
-    days[d].sort((a,b)=>a.timestamp-b.timestamp).forEach(r=>{
-      rows+=`<tr><td style="padding:5px 8px">${tipoLabel(r.tipo)}</td><td style="padding:5px 8px;font-family:monospace">${r.hora}</td><td style="padding:5px 8px;font-size:11px;color:#a07840">${r.editado?'✏️ Editado pelo gerente':''}</td></tr>`;
-    });
-  });
+
+  const diasSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  let totalHoras = 0; let totalExtras = 0;
+  const jornada = prof.jornada || 8;
+  let rows = '';
+
+  for (let d=1; d<=diasNoMes; d++) {
+    const dataStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const diaSem = diasSemana[new Date(dataStr+'T12:00:00').getDay()];
+    const isDomingo = new Date(dataStr+'T12:00:00').getDay() === 0;
+    const isSabado = new Date(dataStr+'T12:00:00').getDay() === 6;
+    const dayRecs = (days[dataStr]||[]).sort((a,b)=>a.timestamp-b.timestamp);
+    const entrada = dayRecs.find(r=>r.tipo==='entrada');
+    const iniInt = dayRecs.find(r=>r.tipo==='inicio-intervalo');
+    const fimInt = dayRecs.find(r=>r.tipo==='fim-intervalo');
+    const saida = dayRecs.find(r=>r.tipo==='saida');
+    const h = calcHorasFromRecs(dayRecs);
+    if(h!==null){ totalHoras+=h; if(h>jornada) totalExtras+=(h-jornada); }
+    const extraH = (h!==null && h>jornada) ? (h-jornada).toFixed(1)+'h' : '';
+    const bg = isDomingo||isSabado ? '#f5f5f5' : (dayRecs.length>0?'#fff':'#fff');
+    const obs = dayRecs.some(r=>r.editado) ? 'Editado' : (extraH?`Extra: ${extraH}`:'');
+    rows += `<tr style="background:${bg}">
+      <td style="border:1px solid #ccc;padding:3px 5px;text-align:center;font-size:11px;font-weight:700">${String(d).padStart(2,'0')}</td>
+      <td style="border:1px solid #ccc;padding:3px 5px;text-align:center;font-size:11px;color:${isDomingo?'#c0392b':isSabado?'#2980b9':'#333'}">${diaSem}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px;text-align:center;font-size:11px;font-family:monospace">${entrada?entrada.hora.slice(0,5):''}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px;text-align:center;font-size:11px;font-family:monospace">${iniInt?iniInt.hora.slice(0,5):''}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px;text-align:center;font-size:11px;font-family:monospace">${fimInt?fimInt.hora.slice(0,5):''}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px;text-align:center;font-size:11px;font-family:monospace">${saida?saida.hora.slice(0,5):''}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px;text-align:center;font-size:11px;font-family:monospace">${extraH}</td>
+      <td style="border:1px solid #ccc;padding:3px 6px;font-size:10px;color:#666">${obs}</td>
+    </tr>`;
+  }
+
   document.getElementById('print-area').innerHTML=`
-    <div style="max-width:700px;margin:0 auto;font-family:sans-serif">
-      <div style="text-align:center;margin-bottom:20px;padding-bottom:16px;border-bottom:3px solid #4a2010">
-        <div style="font-size:28px;margin-bottom:6px">🕐</div>
-        <h1 style="color:#4a2010;font-size:20px;margin:0">BATE PONTO EMPÓRIO</h1>
-        <h2 style="color:#6b4520;font-size:14px;font-weight:400;margin:4px 0 0">Empório Coisas da Roça · Relatório de Ponto — ${getMonthStr()}</h2>
-      </div>
-      <table style="width:100%;margin-bottom:16px;border-collapse:collapse;font-size:13px">
-        <tr><td style="padding:5px 8px;width:50%"><strong>Funcionário:</strong> ${prof.nome}</td><td><strong>CPF:</strong> ${prof.cpf||'—'}</td></tr>
-        <tr><td style="padding:5px 8px"><strong>Cargo:</strong> ${prof.cargo}</td><td><strong>Admissão:</strong> ${formatDate(prof.admissao)||'—'}</td></tr>
-        <tr><td style="padding:5px 8px"><strong>Jornada:</strong> ${prof.jornada||8}h/dia</td><td><strong>Dias trabalhados:</strong> ${stats.diasTrab}</td></tr>
-        <tr style="background:#fef8ea"><td style="padding:5px 8px"><strong>Total de horas:</strong> ${stats.totalH}h</td><td><strong>Horas extras:</strong> ${stats.extras}h</td></tr>
+    <style>
+      @media print {
+        @page { size: A4 portrait; margin: 15mm; }
+        body { margin:0; }
+      }
+    </style>
+    <div style="font-family:Arial,sans-serif;font-size:12px;max-width:750px;margin:0 auto">
+      <table style="width:100%;border-collapse:collapse;border:1px solid #333;margin-bottom:0">
+        <tr>
+          <td colspan="2" style="border:1px solid #333;padding:5px 8px;font-size:11px"><strong>Folha de ponto individual de funcionários</strong></td>
+          <td style="border:1px solid #333;padding:5px 8px;font-size:11px;white-space:nowrap"><strong>Período:</strong> ${periodoInicio} a ${periodoFim}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #333;padding:4px 8px;font-size:11px;width:120px"><strong>Empresa:</strong></td>
+          <td colspan="2" style="border:1px solid #333;padding:4px 8px;font-size:11px">EMPÓRIO COISAS DA ROÇA</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #333;padding:4px 8px;font-size:11px"><strong>Atividade:</strong></td>
+          <td colspan="2" style="border:1px solid #333;padding:4px 8px;font-size:11px">Comércio varejista de produtos alimentícios</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #333;padding:4px 8px;font-size:11px"><strong>Endereço:</strong></td>
+          <td colspan="2" style="border:1px solid #333;padding:4px 8px;font-size:11px">Bela Vista de Goiás - GO</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #333;padding:4px 8px;font-size:11px"><strong>Funcionário:</strong></td>
+          <td style="border:1px solid #333;padding:4px 8px;font-size:11px"><strong>${prof.nome}</strong></td>
+          <td style="border:1px solid #333;padding:4px 8px;font-size:11px">CPF: ${prof.cpf||'—'}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #333;padding:4px 8px;font-size:11px"><strong>Cargo:</strong></td>
+          <td style="border:1px solid #333;padding:4px 8px;font-size:11px">${prof.cargo}</td>
+          <td style="border:1px solid #333;padding:4px 8px;font-size:11px">Admissão: ${formatDate(prof.admissao)||'—'}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #333;padding:4px 8px;font-size:11px"><strong>Horário:</strong></td>
+          <td colspan="2" style="border:1px solid #333;padding:4px 8px;font-size:11px">Jornada de ${jornada}h diárias</td>
+        </tr>
       </table>
-      <table style="width:100%;border-collapse:collapse;border:1px solid #e8d4a8;font-size:13px">
-        <thead><tr style="background:#4a2010;color:#f5e8c0"><th style="padding:8px;text-align:left">Tipo</th><th style="padding:8px;text-align:left">Horário</th><th style="padding:8px;text-align:left">Obs</th></tr></thead>
+
+      <table style="width:100%;border-collapse:collapse;margin-top:0">
+        <thead>
+          <tr style="background:#e0e0e0">
+            <th rowspan="2" style="border:1px solid #333;padding:4px;font-size:11px;text-align:center">Dia</th>
+            <th rowspan="2" style="border:1px solid #333;padding:4px;font-size:11px;text-align:center"></th>
+            <th colspan="4" style="border:1px solid #333;padding:4px;font-size:11px;text-align:center">Normal</th>
+            <th rowspan="2" style="border:1px solid #333;padding:4px;font-size:11px;text-align:center">Extra</th>
+            <th rowspan="2" style="border:1px solid #333;padding:4px;font-size:11px;text-align:center">Assinatura ou observações</th>
+          </tr>
+          <tr style="background:#e0e0e0">
+            <th style="border:1px solid #333;padding:4px;font-size:10px;text-align:center">Entrada</th>
+            <th style="border:1px solid #333;padding:4px;font-size:10px;text-align:center">Ini.Int.</th>
+            <th style="border:1px solid #333;padding:4px;font-size:10px;text-align:center">Fim.Int.</th>
+            <th style="border:1px solid #333;padding:4px;font-size:10px;text-align:center">Saída</th>
+          </tr>
+        </thead>
         <tbody>${rows}</tbody>
+        <tfoot>
+          <tr style="background:#f0f0f0;font-weight:700">
+            <td colspan="4" style="border:1px solid #333;padding:5px 8px;font-size:11px">Total de horas trabalhadas: <strong>${totalHoras.toFixed(1)}h</strong></td>
+            <td colspan="2" style="border:1px solid #333;padding:5px 8px;font-size:11px">Horas extras: <strong>${totalExtras.toFixed(1)}h</strong></td>
+            <td colspan="2" style="border:1px solid #333;padding:5px 8px;font-size:11px">Dias trabalhados: <strong>${Object.keys(days).length}</strong></td>
+          </tr>
+        </tfoot>
       </table>
-      <div style="margin-top:60px;display:flex;justify-content:space-between">
-        <div style="text-align:center;width:220px"><div style="border-top:1px solid #333;padding-top:8px;font-size:13px">Assinatura do Funcionário</div><div style="font-size:11px;color:#666;margin-top:4px">${prof.nome}</div></div>
-        <div style="text-align:center;width:220px"><div style="border-top:1px solid #333;padding-top:8px;font-size:13px">Assinatura do Responsável</div><div style="font-size:11px;color:#666;margin-top:4px">Empório Coisas da Roça</div></div>
+
+      <div style="margin-top:40px;display:flex;justify-content:space-between;align-items:flex-end">
+        <div style="font-size:12px">
+          <strong>Data:</strong> ____/____/________
+        </div>
+        <div style="text-align:center;width:280px">
+          <div style="border-top:1px solid #333;padding-top:6px;font-size:12px">Assinatura do Responsável</div>
+          <div style="font-size:11px;color:#666;margin-top:3px">Empório Coisas da Roça</div>
+        </div>
+        <div style="text-align:center;width:220px">
+          <div style="border-top:1px solid #333;padding-top:6px;font-size:12px">Assinatura do Funcionário</div>
+          <div style="font-size:11px;color:#666;margin-top:3px">${prof.nome}</div>
+        </div>
       </div>
-      <p style="font-size:10px;color:#a07840;text-align:center;margin-top:30px">Gerado em ${new Date().toLocaleString('pt-BR')} · Bate Ponto Empório</p>
+      <p style="font-size:9px;color:#999;text-align:center;margin-top:20px">Gerado em ${new Date().toLocaleString('pt-BR')} · Sistema Bate Ponto Empório · Coisas da Roça</p>
     </div>`;
   window.print();
 }
