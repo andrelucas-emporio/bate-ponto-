@@ -555,9 +555,10 @@ function startClock() {
 // ===== FIRESTORE HELPERS =====
 async function getUserTodayRecords(uid) {
   const today = getToday();
-  const q = query(collection(db,'registros'), where('userId','==',uid), where('data','==',today), orderBy('timestamp','asc'));
+  // Avoid compound index requirement - filter data in JS
+  const q = query(collection(db,'registros'), where('userId','==',uid), where('data','==',today));
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({id:d.id,...d.data()}));
+  return snap.docs.map(d => ({id:d.id,...d.data()})).sort((a,b)=>a.timestamp-b.timestamp);
 }
 
 async function getUserStatus(uid) {
@@ -608,9 +609,9 @@ function calcHorasLive(recs) {
 async function calcBancoHoras(uid) {
   const profSnap = await getDoc(doc(db,'usuarios',uid));
   const jornada = profSnap.exists() ? (profSnap.data().jornada||8) : 8;
-  const q = query(collection(db,'registros'), where('userId','==',uid), orderBy('timestamp','asc'));
+  const q = query(collection(db,'registros'), where('userId','==',uid));
   const snap = await getDocs(q);
-  const recs = snap.docs.map(d=>({id:d.id,...d.data()}));
+  const recs = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.timestamp-b.timestamp);
   const days = {};
   recs.forEach(r=>{ if(!days[r.data]) days[r.data]=[]; days[r.data].push(r); });
   let saldo = 0;
@@ -628,9 +629,9 @@ async function calcBancoHoras(uid) {
 
 async function calcMonthStats(uid) {
   const now = new Date(); const month = now.getMonth(); const year = now.getFullYear();
-  const q = query(collection(db,'registros'), where('userId','==',uid), orderBy('timestamp','asc'));
+  const q = query(collection(db,'registros'), where('userId','==',uid));
   const snap = await getDocs(q);
-  const recs = snap.docs.map(d=>({id:d.id,...d.data()}));
+  const recs = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.timestamp-b.timestamp);
   const days = {};
   recs.forEach(r=>{
     const d = new Date(r.data+'T12:00:00');
@@ -744,9 +745,9 @@ window.registrarPonto = async function(tipo) {
 
 // ===== HISTORICO =====
 async function buildHistoricoScreen(uid) {
-  const q = query(collection(db,'registros'), where('userId','==',uid), orderBy('timestamp','desc'));
+  const q = query(collection(db,'registros'), where('userId','==',uid));
   const snap = await getDocs(q);
-  const recs = snap.docs.map(d=>({id:d.id,...d.data()}));
+  const recs = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.timestamp-a.timestamp);
   const stats = await calcMonthStats(uid);
   const days = {};
   recs.forEach(r=>{ if(!days[r.data]) days[r.data]=[]; days[r.data].push(r); });
@@ -783,9 +784,9 @@ async function buildRelatorioScreen(uid, mesOffset=0) {
   const targetDate = new Date(now.getFullYear(), now.getMonth()+mesOffset, 1);
   const month = targetDate.getMonth(); const year = targetDate.getFullYear();
   const nomeMes = targetDate.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
-  const q = query(collection(db,'registros'), where('userId','==',uid), orderBy('timestamp','asc'));
+  const q = query(collection(db,'registros'), where('userId','==',uid));
   const snap = await getDocs(q);
-  const recs = snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>{
+  const recs = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.timestamp-b.timestamp).filter(r=>{
     const d=new Date(r.data+'T12:00:00'); return d.getMonth()===month&&d.getFullYear()===year;
   });
   const days = {};
@@ -850,9 +851,9 @@ window.printRelatorio = async function(uid, mesOffset=0) {
   const periodoInicio = `01/${String(month+1).padStart(2,'0')}/${year}`;
   const periodoFim = `${diasNoMes}/${String(month+1).padStart(2,'0')}/${year}`;
 
-  const q = query(collection(db,'registros'), where('userId','==',uid), orderBy('timestamp','asc'));
+  const q = query(collection(db,'registros'), where('userId','==',uid));
   const snap = await getDocs(q);
-  const recs = snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>{
+  const recs = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.timestamp-b.timestamp).filter(r=>{
     const d=new Date(r.data+'T12:00:00'); return d.getMonth()===month && d.getFullYear()===year;
   });
   const days={};
@@ -1130,9 +1131,9 @@ async function buildFuncionariosScreen() {
 
 // ===== LOG =====
 async function buildLogScreen() {
-  const q = query(collection(db,'auditLog'), orderBy('criadoEm','desc'));
+  const q = query(collection(db,'auditLog'));
   const snap = await getDocs(q);
-  const logs = snap.docs.map(d=>({id:d.id,...d.data()}));
+  const logs = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>new Date(b.quando)-new Date(a.quando));
   return `
     <div class="section-title">📋 Log de Auditoria</div>
     ${logs.length===0?'<div class="empty-state"><div class="es-icon">📋</div><p>Nenhuma ação registrada ainda</p></div>':
