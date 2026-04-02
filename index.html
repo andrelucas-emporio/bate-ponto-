@@ -303,7 +303,10 @@ function formatDate(str) {
   const [y,m,d] = str.split('-');
   return `${d}/${m}/${y}`;
 }
-function getToday() { return new Date().toISOString().split('T')[0]; }
+function getToday() {
+  const now = new Date();
+  return now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+}
 function getMonthStr() { return new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'}); }
 function tipoLabel(t) { return {entrada:'Entrada','inicio-intervalo':'Início de Intervalo','fim-intervalo':'Fim de Intervalo',saida:'Saída'}[t]||t; }
 function tipoEmoji(t) { return {entrada:'🌅','inicio-intervalo':'☕','fim-intervalo':'🔙',saida:'🌇'}[t]||'⚪'; }
@@ -555,14 +558,18 @@ function startClock() {
 // ===== FIRESTORE HELPERS =====
 async function getUserTodayRecords(uid) {
   const today = getToday();
-  // Avoid compound index requirement - filter data in JS
-  const q = query(collection(db,'registros'), where('userId','==',uid), where('data','==',today));
+  // Single where clause only - filter date in JS to avoid any index requirement
+  const q = query(collection(db,'registros'), where('userId','==',uid));
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({id:d.id,...d.data()})).sort((a,b)=>a.timestamp-b.timestamp);
+  return snap.docs
+    .map(d => ({id:d.id,...d.data()}))
+    .filter(r => r.data === today)
+    .sort((a,b) => a.timestamp - b.timestamp);
 }
 
 async function getUserStatus(uid) {
   const recs = await getUserTodayRecords(uid);
+  console.log('[getUserStatus] uid:', uid, 'today:', getToday(), 'recs found:', recs.length, recs.map(r=>r.tipo+' '+r.data));
   const tipos = recs.map(r=>r.tipo);
   if (tipos.includes('saida')) return 'saida';
   if (tipos.includes('fim-intervalo')) return 'fim-intervalo';
@@ -712,11 +719,12 @@ window.registrarPonto = async function(tipo) {
   showToast('⏳ Registrando...');
   try {
     const now = new Date();
+    const dataHoje = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
     const rec = {
       userId: currentUser.uid,
       userName: currentProfile.nome,
       tipo,
-      data: now.toISOString().split('T')[0],
+      data: dataHoje,
       hora: now.toTimeString().slice(0,8),
       timestamp: now.getTime(),
       lat: geoCoords ? geoCoords.lat : null,
