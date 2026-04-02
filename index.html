@@ -290,6 +290,7 @@ let currentProfile = null;
 let currentScreen = 'ponto';
 let clockInterval = null;
 let geoCoords = null;
+let geoAddress = null;
 
 function showToast(msg, dur=3500) {
   const el = document.getElementById('toast');
@@ -310,8 +311,31 @@ function tipoEmoji(t) { return {entrada:'🌅','inicio-intervalo':'☕','fim-int
 function requestGeo() {
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
-      p => { geoCoords = { lat: p.coords.latitude.toFixed(6), lng: p.coords.longitude.toFixed(6) }; },
-      () => { geoCoords = null; }
+      async p => {
+        const lat = p.coords.latitude.toFixed(6);
+        const lng = p.coords.longitude.toFixed(6);
+        geoCoords = { lat, lng };
+        // Geocodificação reversa via OpenStreetMap Nominatim
+        try {
+          const resp = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=pt-BR`,
+            { headers: { 'User-Agent': 'BatePontoEmporio/1.0' } }
+          );
+          const data = await resp.json();
+          const a = data.address || {};
+          const rua = a.road || a.pedestrian || a.footway || '';
+          const numero = a.house_number ? ', '+a.house_number : '';
+          const bairro = a.suburb || a.neighbourhood || a.quarter || '';
+          const cidade = a.city || a.town || a.village || '';
+          geoAddress = [rua+numero, bairro, cidade].filter(Boolean).join(' — ');
+          // Update display if visible
+          const geo = document.getElementById('geo-status');
+          if (geo && geoAddress) geo.textContent = '📍 '+geoAddress;
+        } catch(e) {
+          geoAddress = null;
+        }
+      },
+      () => { geoCoords = null; geoAddress = null; }
     );
   }
 }
@@ -453,6 +477,7 @@ window.showScreen = async function(id) {
 let notifPermission = false;
 let notif30Sent = false;
 let notif10Sent = false;
+let notifIntervaloSent = false;
 let lastNotifDay = null;
 
 async function requestNotifPermission() {
@@ -473,7 +498,7 @@ async function checkJornadaNotifs() {
   if (!currentUser || currentProfile.tipo !== 'funcionario') return;
   const today = getToday();
   // Reset flags on new day
-  if (lastNotifDay !== today) { notif30Sent=false; notif10Sent=false; lastNotifDay=today; }
+  if (lastNotifDay !== today) { notif30Sent=false; notif10Sent=false; notifIntervaloSent=false; lastNotifDay=today; }
 
   const recs = await getUserTodayRecords(currentUser.uid);
   const entrada = recs.find(r=>r.tipo==='entrada');
@@ -487,13 +512,21 @@ async function checkJornadaNotifs() {
   const minutosRestantes = (jornada - horasLive) * 60;
   const minutosExtra = (horasLive - jornada) * 60;
 
+  // Aviso de intervalo após 14h se ainda não tirou
+  const horaAtual = new Date().getHours();
+  const temIntervalo = recs.some(r=>r.tipo==='inicio-intervalo');
+  if (!notifIntervaloSent && horaAtual >= 14 && !temIntervalo) {
+    notifIntervaloSent = true;
+    sendNotif('☕ Não esqueça do intervalo!', 'Já passa das 14h. Lembre-se de registrar seu intervalo!', '☕');
+  }
+
   if (!notif30Sent && minutosRestantes <= 30 && minutosRestantes > 0) {
     notif30Sent = true;
-    sendNotif('⏰ Jornada quase no fim!', `Faltam ${Math.round(minutosRestantes)} minutos para encerrar sua jornada.`, '⏰');
+    sendNotif('⏰ Jornada quase no fim!', 'Faltam '+Math.round(minutosRestantes)+' minutos para encerrar sua jornada.', '⏰');
   }
   if (!notif10Sent && minutosExtra >= 10) {
     notif10Sent = true;
-    sendNotif('⚠️ Hora extra!', `Você está há ${Math.round(minutosExtra)} minutos em hora extra. Registre sua saída!`, '⚠️');
+    sendNotif('⚠️ Hora extra!', 'Você está há '+Math.round(minutosExtra)+' minutos em hora extra. Registre sua saída!', '⚠️');
   }
 }
 
@@ -509,7 +542,7 @@ function startClock() {
     cl.textContent = now.toLocaleTimeString('pt-BR');
     if (cd) cd.textContent = now.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
     const geo = document.getElementById('geo-status');
-    if (geo) geo.textContent = geoCoords ? '📍 '+geoCoords.lat+', '+geoCoords.lng : 'Localização não disponível';
+    if (geo) geo.textContent = geoAddress ? '📍 '+geoAddress : (geoCoords ? '📍 '+geoCoords.lat+', '+geoCoords.lng : 'Obtendo localização...');
     // Check jornada notifications every 30 seconds
     notifTick++;
     if (notifTick % 30 === 0) checkJornadaNotifs();
@@ -540,6 +573,7 @@ async function getUserStatus(uid) {
 async function nextPontoType(uid) {
   const seq = ['entrada','inicio-intervalo','fim-intervalo','saida'];
   const status = await getUserStatus(uid);
+  if (status === 'saida') return null; // Jornada encerrada, nenhum botão disponível
   const idx = seq.indexOf(status);
   if (idx === -1) return 'entrada';
   if (idx === seq.length-1) return null;
@@ -686,6 +720,7 @@ window.registrarPonto = async function(tipo) {
       timestamp: now.getTime(),
       lat: geoCoords ? geoCoords.lat : null,
       lng: geoCoords ? geoCoords.lng : null,
+      endereco: geoAddress || null,
       editado: false,
       criadoEm: serverTimestamp(),
     };
@@ -733,7 +768,7 @@ async function buildHistoricoScreen(uid) {
               <div class="hist-type">${tipoLabel(r.tipo)}</div>
               <div class="hist-time">${r.hora}</div>
               ${r.editado?`<div class="hist-edited">✏️ Editado pelo gerente</div>`:''}
-              ${r.lat?`<div style="font-size:10px;color:var(--text3)">📍 ${r.lat}, ${r.lng}</div>`:''}
+              ${r.endereco?`<div style="font-size:10px;color:var(--text3)">📍 ${r.endereco}</div>`:r.lat?`<div style="font-size:10px;color:var(--text3)">📍 ${r.lat}, ${r.lng}</div>`:''}
             </div>
           </div>`).join('')}
       </div>`).join('')}
@@ -1025,12 +1060,26 @@ async function buildDashboard() {
     const stats = await calcMonthStats(u.id);
     const recs = await getUserTodayRecords(u.id);
 
-    if (hora>=9 && status==='none') alerts.push({tipo:'danger',msg:`${u.nome} não bateu ponto hoje`,sub:'Ausência não justificada'});
-    else if (status==='inicio-intervalo') {
+    const jornada = u.jornada || 8;
+    const horasFeitas = calcHorasFromRecs(recs);
+
+    if (hora>=9 && status==='none') {
+      alerts.push({tipo:'danger', msg:u.nome+' não registrou ponto hoje', sub:'Ausência não justificada'});
+    } else if (status==='inicio-intervalo') {
       const iniInt = recs.find(r=>r.tipo==='inicio-intervalo');
-      if (iniInt && (Date.now()-iniInt.timestamp)>90*60000) alerts.push({tipo:'warn',msg:`${u.nome} em intervalo há mais de 1h30`,sub:'Verificar retorno'});
+      if (iniInt && (Date.now()-iniInt.timestamp)>90*60000) {
+        alerts.push({tipo:'warn', msg:u.nome+' em intervalo há mais de 1h30', sub:'Verificar retorno'});
+      }
+    } else if (status==='saida' && horasFeitas!==null) {
+      const diff = horasFeitas - jornada;
+      if (diff < -0.08) {
+        alerts.push({tipo:'warn', msg:u.nome+' ficou devendo horas hoje', sub:'Trabalhou '+horasFeitas.toFixed(1)+'h de '+jornada+'h — faltaram '+Math.abs(diff).toFixed(1)+'h'});
+      } else if (diff > 0.08) {
+        alerts.push({tipo:'warn', msg:u.nome+' fez hora extra hoje', sub:'Trabalhou '+horasFeitas.toFixed(1)+'h — '+diff.toFixed(1)+'h além da jornada'});
+      } else {
+        alerts.push({tipo:'success', msg:u.nome+' encerrou a jornada', sub:'Jornada de '+jornada+'h cumprida corretamente ✅'});
+      }
     }
-    if (status==='saida') alerts.push({tipo:'success',msg:`${u.nome} encerrou a jornada`,sub:'Todos os registros corretos ✅'});
 
     const sm = {none:{badge:'gray',label:'Sem registro'},entrada:{badge:'ok',label:'Em serviço'},'inicio-intervalo':{badge:'warn',label:'Em intervalo'},'fim-intervalo':{badge:'ok',label:'Pós-intervalo'},saida:{badge:'ok',label:'Encerrado'}}[status]||{badge:'gray',label:'?'};
     cards.push(`<div class="func-card" onclick="openFuncDetail('${u.id}')">
@@ -1175,7 +1224,7 @@ window.openFuncDetail = async function(uid) {
         <div class="de-info">
           <div class="de-type">${tipoLabel(r.tipo)}</div>
           <div class="de-time">${r.hora}${r.editado?' · ✏️ Editado':''}</div>
-          ${r.lat?`<div style="font-size:10px;color:var(--text3)">📍 ${r.lat}, ${r.lng}</div>`:''}
+          ${r.endereco?`<div style="font-size:10px;color:var(--text3)">📍 ${r.endereco}</div>`:r.lat?`<div style="font-size:10px;color:var(--text3)">📍 ${r.lat}, ${r.lng}</div>`:''}
         </div>
         <button class="de-edit" onclick="editRecord('${r.id}','${r.hora}','${r.tipo}')">✏️ Editar</button>
       </div>`).join('')}
