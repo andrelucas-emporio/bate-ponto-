@@ -245,8 +245,18 @@
 
   #print-area { display:none; }
   @media print {
-    body > * { display:none; }
-    #print-area { display:block !important; font-family:sans-serif; padding:20px; }
+    * { visibility:hidden; margin:0; padding:0; box-shadow:none !important; }
+    #print-area, #print-area * { visibility:visible; }
+    #print-area {
+      display:block !important;
+      position:fixed;
+      top:0; left:0;
+      width:210mm;
+      min-height:297mm;
+      background:#fff;
+      padding:12mm 14mm;
+      font-family:Arial,sans-serif;
+    }
   }
 </style>
 </head>
@@ -831,103 +841,117 @@ window.printRelatorio = async function(uid, mesOffset=0) {
     const h = calcHorasFromRecs(dayRecs);
     if(h!==null){ totalHoras+=h; if(h>jornada) totalExtras+=(h-jornada); }
     const extraH = (h!==null && h>jornada) ? (h-jornada).toFixed(1)+'h' : '';
-    const bg = isDomingo||isSabado ? '#f5f5f5' : (dayRecs.length>0?'#fff':'#fff');
-    const obs = dayRecs.some(r=>r.editado) ? 'Editado' : (extraH?`Extra: ${extraH}`:'');
-    rows += `<tr style="background:${bg}">
-      <td style="border:1px solid #ccc;padding:3px 5px;text-align:center;font-size:11px;font-weight:700">${String(d).padStart(2,'0')}</td>
-      <td style="border:1px solid #ccc;padding:3px 5px;text-align:center;font-size:11px;color:${isDomingo?'#c0392b':isSabado?'#2980b9':'#333'}">${diaSem}</td>
-      <td style="border:1px solid #ccc;padding:3px 6px;text-align:center;font-size:11px;font-family:monospace">${entrada?entrada.hora.slice(0,5):''}</td>
-      <td style="border:1px solid #ccc;padding:3px 6px;text-align:center;font-size:11px;font-family:monospace">${iniInt?iniInt.hora.slice(0,5):''}</td>
-      <td style="border:1px solid #ccc;padding:3px 6px;text-align:center;font-size:11px;font-family:monospace">${fimInt?fimInt.hora.slice(0,5):''}</td>
-      <td style="border:1px solid #ccc;padding:3px 6px;text-align:center;font-size:11px;font-family:monospace">${saida?saida.hora.slice(0,5):''}</td>
-      <td style="border:1px solid #ccc;padding:3px 6px;text-align:center;font-size:11px;font-family:monospace">${extraH}</td>
-      <td style="border:1px solid #ccc;padding:3px 6px;font-size:10px;color:#666">${obs}</td>
-    </tr>`;
+    const rowClass = isDomingo ? 'dom' : isSabado ? 'fds' : dayRecs.length>0 ? 'trab' : '';
+    const semCor = isDomingo ? '#c0392b' : isSabado ? '#888' : '#333';
+    const obs = dayRecs.some(r=>r.editado) ? 'Editado' : (extraH?'Extra: '+extraH:'');
+    rows += '<tr class="'+rowClass+'">' +
+      '<td class="dia-num">'+String(d).padStart(2,'0')+'</td>' +
+      '<td class="dia-sem" style="color:'+semCor+'">'+diaSem+'</td>' +
+      '<td class="hora">'+(entrada?entrada.hora.slice(0,5):'')+'</td>' +
+      '<td class="hora">'+(iniInt?iniInt.hora.slice(0,5):'')+'</td>' +
+      '<td class="hora">'+(fimInt?fimInt.hora.slice(0,5):'')+'</td>' +
+      '<td class="hora">'+(saida?saida.hora.slice(0,5):'')+'</td>' +
+      '<td class="extra-col">'+extraH+'</td>' +
+      '<td class="obs-col">'+obs+'</td>' +
+    '</tr>';
   }
 
-  document.getElementById('print-area').innerHTML=`
+  document.getElementById('print-area').innerHTML = buildFolhaPontoHTML(prof, rows, totalHoras, totalExtras, Object.keys(days).length, periodoInicio, periodoFim, jornada);
+  window.print();
+}
+
+function buildFolhaPontoHTML(prof, rows, totalHoras, totalExtras, diasTrab, periodoInicio, periodoFim, jornada) {
+  return `
     <style>
-      @media print {
-        @page { size: A4 portrait; margin: 15mm; }
-        body { margin:0; }
-      }
+      @page { size: A4 portrait; margin: 0; }
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 0; background: #fff; }
+      .folha { width: 190mm; margin: 0 auto; padding: 10mm 0; font-family: Arial, sans-serif; font-size: 10pt; }
+      table { width: 100%; border-collapse: collapse; }
+      td, th { border: 0.5pt solid #333; padding: 2.5pt 4pt; }
+      .cab td { font-size: 9pt; }
+      .cab strong { font-size: 9pt; }
+      thead tr { background: #d8d8d8; }
+      th { font-size: 8.5pt; text-align: center; font-weight: 700; }
+      .dia-num { text-align: center; font-weight: 700; width: 22pt; }
+      .dia-sem { text-align: center; width: 22pt; }
+      .hora { text-align: center; font-family: 'Courier New', monospace; font-size: 9pt; width: 32pt; }
+      .extra-col { text-align: center; font-family: 'Courier New', monospace; font-size: 9pt; width: 28pt; }
+      .obs-col { font-size: 8pt; color: #555; }
+      .fds { color: #999; background: #fafafa; }
+      .dom { color: #c0392b; background: #fafafa; }
+      .trab { background: #fff; }
+      tfoot td { font-size: 9pt; font-weight: 700; background: #efefef; }
+      .assinaturas { margin-top: 20mm; display: flex; justify-content: space-between; }
+      .ass-box { text-align: center; width: 75mm; }
+      .ass-line { border-top: 0.5pt solid #333; padding-top: 3pt; font-size: 9pt; }
+      .ass-name { font-size: 8pt; color: #555; margin-top: 2pt; }
+      .rodape { font-size: 7pt; color: #aaa; text-align: center; margin-top: 8mm; }
     </style>
-    <div style="font-family:Arial,sans-serif;font-size:12px;max-width:750px;margin:0 auto">
-      <table style="width:100%;border-collapse:collapse;border:1px solid #333;margin-bottom:0">
+    <div class="folha">
+      <table class="cab" style="margin-bottom:0">
         <tr>
-          <td colspan="2" style="border:1px solid #333;padding:5px 8px;font-size:11px"><strong>Folha de ponto individual de funcionários</strong></td>
-          <td style="border:1px solid #333;padding:5px 8px;font-size:11px;white-space:nowrap"><strong>Período:</strong> ${periodoInicio} a ${periodoFim}</td>
+          <td colspan="2" style="font-weight:700;font-size:10pt">Folha de ponto individual de funcionários</td>
+          <td style="white-space:nowrap;font-weight:700">Período: ${periodoInicio} a ${periodoFim}</td>
+        </tr>
+        <tr><td style="width:90pt"><strong>Empresa:</strong></td><td colspan="2">EMPÓRIO COISAS DA ROÇA</td></tr>
+        <tr><td><strong>Atividade:</strong></td><td colspan="2">Comércio varejista de produtos alimentícios em geral</td></tr>
+        <tr><td><strong>Endereço:</strong></td><td colspan="2">Bela Vista de Goiás - GO</td></tr>
+        <tr>
+          <td><strong>Funcionário:</strong></td>
+          <td style="font-weight:700">${prof.nome}</td>
+          <td>CPF: ${prof.cpf||'—'}</td>
         </tr>
         <tr>
-          <td style="border:1px solid #333;padding:4px 8px;font-size:11px;width:120px"><strong>Empresa:</strong></td>
-          <td colspan="2" style="border:1px solid #333;padding:4px 8px;font-size:11px">EMPÓRIO COISAS DA ROÇA</td>
+          <td><strong>Cargo:</strong></td>
+          <td>${prof.cargo}</td>
+          <td>Admissão: ${formatDate(prof.admissao)||'—'}</td>
         </tr>
         <tr>
-          <td style="border:1px solid #333;padding:4px 8px;font-size:11px"><strong>Atividade:</strong></td>
-          <td colspan="2" style="border:1px solid #333;padding:4px 8px;font-size:11px">Comércio varejista de produtos alimentícios</td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #333;padding:4px 8px;font-size:11px"><strong>Endereço:</strong></td>
-          <td colspan="2" style="border:1px solid #333;padding:4px 8px;font-size:11px">Bela Vista de Goiás - GO</td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #333;padding:4px 8px;font-size:11px"><strong>Funcionário:</strong></td>
-          <td style="border:1px solid #333;padding:4px 8px;font-size:11px"><strong>${prof.nome}</strong></td>
-          <td style="border:1px solid #333;padding:4px 8px;font-size:11px">CPF: ${prof.cpf||'—'}</td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #333;padding:4px 8px;font-size:11px"><strong>Cargo:</strong></td>
-          <td style="border:1px solid #333;padding:4px 8px;font-size:11px">${prof.cargo}</td>
-          <td style="border:1px solid #333;padding:4px 8px;font-size:11px">Admissão: ${formatDate(prof.admissao)||'—'}</td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #333;padding:4px 8px;font-size:11px"><strong>Horário:</strong></td>
-          <td colspan="2" style="border:1px solid #333;padding:4px 8px;font-size:11px">Jornada de ${jornada}h diárias</td>
+          <td><strong>Horário:</strong></td>
+          <td colspan="2">Jornada de ${jornada}h diárias</td>
         </tr>
       </table>
 
-      <table style="width:100%;border-collapse:collapse;margin-top:0">
+      <table style="margin-top:0">
         <thead>
-          <tr style="background:#e0e0e0">
-            <th rowspan="2" style="border:1px solid #333;padding:4px;font-size:11px;text-align:center">Dia</th>
-            <th rowspan="2" style="border:1px solid #333;padding:4px;font-size:11px;text-align:center"></th>
-            <th colspan="4" style="border:1px solid #333;padding:4px;font-size:11px;text-align:center">Normal</th>
-            <th rowspan="2" style="border:1px solid #333;padding:4px;font-size:11px;text-align:center">Extra</th>
-            <th rowspan="2" style="border:1px solid #333;padding:4px;font-size:11px;text-align:center">Assinatura ou observações</th>
+          <tr>
+            <th rowspan="2" class="dia-num">Dia</th>
+            <th rowspan="2" class="dia-sem"></th>
+            <th colspan="4">Normal</th>
+            <th rowspan="2" class="extra-col">Extra</th>
+            <th rowspan="2" style="width:auto">Assinatura ou observações</th>
           </tr>
-          <tr style="background:#e0e0e0">
-            <th style="border:1px solid #333;padding:4px;font-size:10px;text-align:center">Entrada</th>
-            <th style="border:1px solid #333;padding:4px;font-size:10px;text-align:center">Ini.Int.</th>
-            <th style="border:1px solid #333;padding:4px;font-size:10px;text-align:center">Fim.Int.</th>
-            <th style="border:1px solid #333;padding:4px;font-size:10px;text-align:center">Saída</th>
+          <tr>
+            <th class="hora">Entrada</th>
+            <th class="hora">Ini.Int.</th>
+            <th class="hora">Fim.Int.</th>
+            <th class="hora">Saída</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
         <tfoot>
-          <tr style="background:#f0f0f0;font-weight:700">
-            <td colspan="4" style="border:1px solid #333;padding:5px 8px;font-size:11px">Total de horas trabalhadas: <strong>${totalHoras.toFixed(1)}h</strong></td>
-            <td colspan="2" style="border:1px solid #333;padding:5px 8px;font-size:11px">Horas extras: <strong>${totalExtras.toFixed(1)}h</strong></td>
-            <td colspan="2" style="border:1px solid #333;padding:5px 8px;font-size:11px">Dias trabalhados: <strong>${Object.keys(days).length}</strong></td>
+          <tr>
+            <td colspan="3" style="font-size:9pt">Total horas trabalhadas: <strong>${totalHoras.toFixed(1)}h</strong></td>
+            <td colspan="2" style="font-size:9pt">Horas extras: <strong>${totalExtras.toFixed(1)}h</strong></td>
+            <td colspan="3" style="font-size:9pt">Dias trabalhados: <strong>${diasTrab}</strong></td>
           </tr>
         </tfoot>
       </table>
 
-      <div style="margin-top:40px;display:flex;justify-content:space-between;align-items:flex-end">
-        <div style="font-size:12px">
-          <strong>Data:</strong> ____/____/________
+      <div class="assinaturas">
+        <div style="font-size:9pt">Data: ______ / ______ / __________</div>
+        <div class="ass-box">
+          <div class="ass-line">Assinatura do Responsável</div>
+          <div class="ass-name">Empório Coisas da Roça</div>
         </div>
-        <div style="text-align:center;width:280px">
-          <div style="border-top:1px solid #333;padding-top:6px;font-size:12px">Assinatura do Responsável</div>
-          <div style="font-size:11px;color:#666;margin-top:3px">Empório Coisas da Roça</div>
-        </div>
-        <div style="text-align:center;width:220px">
-          <div style="border-top:1px solid #333;padding-top:6px;font-size:12px">Assinatura do Funcionário</div>
-          <div style="font-size:11px;color:#666;margin-top:3px">${prof.nome}</div>
+        <div class="ass-box">
+          <div class="ass-line">Assinatura do Funcionário</div>
+          <div class="ass-name">${prof.nome}</div>
         </div>
       </div>
-      <p style="font-size:9px;color:#999;text-align:center;margin-top:20px">Gerado em ${new Date().toLocaleString('pt-BR')} · Sistema Bate Ponto Empório · Coisas da Roça</p>
+      <div class="rodape">Gerado em ${new Date().toLocaleString('pt-BR')} · Sistema Bate Ponto Empório · Empório Coisas da Roça</div>
     </div>`;
-  window.print();
 }
 
 
