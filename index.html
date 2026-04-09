@@ -445,8 +445,16 @@ function renderApp() {
   startClock();
   requestGeo();
   requestNotifPermission();
-  const defaultScreen = isG ? 'dashboard' : 'ponto';
-  showScreen(defaultScreen);
+  if (isG) {
+    showScreen('dashboard');
+    iniciarListenerGerente();
+  } else {
+    // Check if funcionario is on ferias today
+    isDiaFerias(currentUser.uid, getToday()).then(emFeriasHoje => {
+      if (emFeriasHoje) showScreen('ferias');
+      else showScreen('ponto');
+    });
+  }
 }
 
 window.doLogout = async () => { if(clockInterval) clearInterval(clockInterval); await signOut(auth); };
@@ -460,7 +468,12 @@ window.showScreen = async function(id) {
 
   try {
     let html = '';
-    if (id === 'ponto') html = await buildPontoScreen();
+    if (id === 'ponto') {
+      // Block if on ferias
+      const emF = await isDiaFerias(currentUser.uid, getToday());
+      if (emF && currentProfile.tipo === 'funcionario') { html = await buildFeriasScreen(); }
+      else html = await buildPontoScreen();
+    } else if (id === 'ferias') html = await buildFeriasScreen();
     else if (id === 'historico') html = await buildHistoricoScreen(currentUser.uid);
     else if (id === 'relatorio') html = await buildRelatorioScreen(currentUser.uid);
     else if (id === 'dashboard') html = await buildDashboard();
@@ -679,7 +692,109 @@ async function calcMonthStats(uid) {
 }
 
 // ===== PONTO SCREEN =====
+async function buildFeriasScreen() {
+  const frases = [
+    'Trabalhar? Nem pensar! Você está oficialmente no modo preguiça ativa. 🦥',
+    'Seu chefe autorizou você a não fazer absolutamente nada. Aproveite! 🌴',
+    'A cadeira do trabalho está te esperando... daqui uns dias. Descanse! 😎',
+    'Você tem permissão oficial para ignorar o despertador. Use com sabedoria! ⏰',
+    'Férias: aquele momento raro em que você pode comer na hora que quiser! 🍦',
+    'O ponto biométrico tirou férias junto com você. Nada a registrar hoje! 🎉',
+    'Missão do dia: não fazer nada e fazer isso muito bem feito. 🏆',
+    'Você está de férias! O trabalho pode esperar, a praia não. 🏖️',
+  ];
+  const frase = frases[Math.floor(Math.random() * frases.length)];
+
+  // Get ferias period
+  const ferias = await getFeriasFunc(currentUser.uid);
+  const hoje = getToday();
+  const periodo = ferias.find(f => hoje >= f.inicio && hoje <= f.fim);
+  const fimFerias = periodo ? formatDate(periodo.fim) : '—';
+  const diasRestantes = periodo ? Math.ceil((new Date(periodo.fim+'T12:00:00') - new Date()) / 86400000) + 1 : 0;
+
+  return `
+    <div style="min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center">
+      <div style="font-size:80px;margin-bottom:8px;animation:bounce 2s infinite">🏖️</div>
+      <div style="font-size:22px;font-weight:800;color:var(--primary);margin-bottom:8px">
+        ${currentProfile.nome.split(' ')[0]}, você está de férias!
+      </div>
+      <div style="background:var(--cream);border-radius:var(--radius);padding:16px 20px;margin:16px 0;border:2px solid var(--accent)">
+        <div style="font-size:14px;color:var(--text2);font-style:italic;line-height:1.5">"${frase}"</div>
+      </div>
+      <div style="background:var(--surface);border-radius:var(--radius);padding:16px 20px;border:2px solid var(--border);width:100%;margin-top:8px">
+        <div style="display:flex;justify-content:space-around">
+          <div style="text-align:center">
+            <div style="font-size:28px;font-weight:800;color:var(--green);font-family:'JetBrains Mono',monospace">${diasRestantes}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">dias restantes</div>
+          </div>
+          <div style="width:1px;background:var(--border)"></div>
+          <div style="text-align:center">
+            <div style="font-size:14px;font-weight:800;color:var(--primary)">${fimFerias}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">retorno previsto</div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:20px;font-size:12px;color:var(--text3)">
+        🔒 Registro de ponto desabilitado durante as férias
+      </div>
+    </div>
+    <style>
+      @keyframes bounce {
+        0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)}
+      }
+    </style>`;
+}
+
+async function buildFeriasScreen() {
+  const ferias = await getFeriasFunc(currentUser.uid);
+  const hoje = getToday();
+  const periodo = ferias.find(f => hoje >= f.inicio && hoje <= f.fim);
+  const frases = [
+    "🌴 Solta o estresse — o empório tá de olho, mas você não precisa!",
+    "☀️ Sol, praia ou sofá — qualquer escolha é a certa agora!",
+    "🎉 Férias são sagradas! Desligue e recarregue as energias!",
+    "🌺 O trabalho espera, o descanso não! Aproveite cada segundo!",
+    "🏖️ A vida manda trabalhar, mas as férias mandam descansar!",
+    "😎 Tá proibido pensar em trabalho. É ordem da chefia!",
+    "🍹 Bora aproveitar que a conta tá paga e o descanso tá liberado!",
+  ];
+  const frase = frases[Math.floor(Math.random() * frases.length)];
+  const diasRestantes = periodo ? Math.ceil((new Date(periodo.fim+'T12:00:00') - new Date()) / 86400000) : 0;
+  const voltaEm = periodo ? formatDate(periodo.fim) : '';
+
+  return \`
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70vh;padding:32px;text-align:center">
+      <div style="font-size:80px;margin-bottom:16px;animation:float 3s ease-in-out infinite">🏖️</div>
+      <div style="font-size:22px;font-weight:800;color:var(--primary);margin-bottom:12px">
+        Você está de férias!
+      </div>
+      <div style="font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px;background:var(--cream);border-radius:16px;padding:16px 20px;border:2px solid var(--accent)">
+        \${frase}
+      </div>
+      \${periodo ? \`
+        <div style="background:var(--surface);border-radius:16px;padding:16px 24px;border:2px solid var(--border);margin-bottom:16px;width:100%">
+          <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Seu período de férias</div>
+          <div style="font-size:15px;font-weight:700;color:var(--primary)">\${formatDate(periodo.inicio)} até \${formatDate(periodo.fim)}</div>
+          <div style="font-size:13px;color:var(--accent-dark);margin-top:6px;font-weight:600">
+            \${diasRestantes > 1 ? 'Ainda faltam '+diasRestantes+' dias de descanso! 🎊' : diasRestantes === 1 ? 'Último dia de férias, aproveite! 🥂' : 'Férias encerrando hoje! 👋'}
+          </div>
+        </div>
+      \` : ''}
+      <div style="font-size:12px;color:var(--text3);margin-top:8px">
+        O registro de ponto está desativado durante as férias.
+      </div>
+    </div>
+    <style>
+      @keyframes float {
+        0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)}
+      }
+    </style>\`;
+}
+
 async function buildPontoScreen() {
+  // Redirect to ferias screen if applicable
+  const emFeriasAgora = await isDiaFerias(currentUser.uid, getToday());
+  if (emFeriasAgora) return buildFeriasScreen();
   const status = await getUserStatus(currentUser.uid);
   const next = await nextPontoType(currentUser.uid);
   const todayRecs = await getUserTodayRecords(currentUser.uid);
@@ -735,6 +850,9 @@ async function buildPontoScreen() {
 }
 
 window.registrarPonto = async function(tipo) {
+  // Block if on ferias
+  const emFerias = await isDiaFerias(currentUser.uid, getToday());
+  if (emFerias) { showToast('🏖️ Você está de férias! Aproveite!'); return; }
   // Disable all buttons
   document.querySelectorAll('.btn-ponto').forEach(b=>b.disabled=true);
   showToast('⏳ Registrando...');
@@ -1438,6 +1556,58 @@ window.salvarJustificativa = async function(uid, nome) {
 }
 
 window.closeModal = function() { const m=document.getElementById('modal-overlay'); if(m) m.remove(); }
+
+// ===== LISTENER GERENTE =====
+let gerenteListenerUnsub = null;
+let ultimosRegistrosConhecidos = {};
+
+function iniciarListenerGerente() {
+  if (gerenteListenerUnsub) gerenteListenerUnsub(); // cancel previous
+  const hoje = getToday();
+
+  const q = query(collection(db,'registros'), where('data','==',hoje));
+  gerenteListenerUnsub = onSnapshot(q, (snap) => {
+    snap.docChanges().forEach(change => {
+      if (change.type !== 'added') return;
+      const rec = {id: change.doc.id, ...change.doc.data()};
+
+      // Avoid duplicate notifications on first load
+      if (ultimosRegistrosConhecidos[rec.id]) return;
+      ultimosRegistrosConhecidos[rec.id] = true;
+
+      // Skip if was just registered (less than 5s ago) - avoid self-trigger on first load
+      if ((Date.now() - rec.timestamp) > 10000) return;
+
+      const nome = rec.userName || 'Funcionário';
+
+      if (rec.tipo === 'entrada') {
+        sendNotif('✅ Entrada registrada', nome + ' acabou de bater o ponto de entrada.', '🌅');
+      } else if (rec.tipo === 'saida') {
+        sendNotif('🌇 Saída registrada', nome + ' registrou saída agora.', '🌇');
+        // Check if overtime
+        setTimeout(async () => {
+          const allRecs = await getUserTodayRecords(rec.userId);
+          const profSnap = await getDoc(doc(db,'usuarios',rec.userId));
+          const jornada = profSnap.exists() ? (profSnap.data().jornada||8) : 8;
+          const horas = calcHorasFromRecs(allRecs);
+          if (horas !== null && horas > jornada) {
+            const extra = (horas - jornada).toFixed(1);
+            sendNotif('⚠️ Hora extra detectada', nome + ' fez ' + extra + 'h extra hoje ('+horas.toFixed(1)+'h de '+jornada+'h).', '⚠️');
+          }
+        }, 2000);
+      } else if (rec.tipo === 'inicio-intervalo') {
+        sendNotif('☕ Intervalo iniciado', nome + ' iniciou o intervalo.', '☕');
+      } else if (rec.tipo === 'fim-intervalo') {
+        sendNotif('🔙 Retornou do intervalo', nome + ' voltou do intervalo.', '🔙');
+      }
+
+      // Refresh dashboard if currently viewing it
+      if (currentScreen === 'dashboard') {
+        setTimeout(() => showScreen('dashboard'), 1500);
+      }
+    });
+  });
+}
 
 // ===== INIT =====
 renderLoading();
