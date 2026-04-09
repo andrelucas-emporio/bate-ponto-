@@ -693,59 +693,6 @@ async function calcMonthStats(uid) {
 
 // ===== PONTO SCREEN =====
 async function buildFeriasScreen() {
-  const frases = [
-    'Trabalhar? Nem pensar! Você está oficialmente no modo preguiça ativa. 🦥',
-    'Seu chefe autorizou você a não fazer absolutamente nada. Aproveite! 🌴',
-    'A cadeira do trabalho está te esperando... daqui uns dias. Descanse! 😎',
-    'Você tem permissão oficial para ignorar o despertador. Use com sabedoria! ⏰',
-    'Férias: aquele momento raro em que você pode comer na hora que quiser! 🍦',
-    'O ponto biométrico tirou férias junto com você. Nada a registrar hoje! 🎉',
-    'Missão do dia: não fazer nada e fazer isso muito bem feito. 🏆',
-    'Você está de férias! O trabalho pode esperar, a praia não. 🏖️',
-  ];
-  const frase = frases[Math.floor(Math.random() * frases.length)];
-
-  // Get ferias period
-  const ferias = await getFeriasFunc(currentUser.uid);
-  const hoje = getToday();
-  const periodo = ferias.find(f => hoje >= f.inicio && hoje <= f.fim);
-  const fimFerias = periodo ? formatDate(periodo.fim) : '—';
-  const diasRestantes = periodo ? Math.ceil((new Date(periodo.fim+'T12:00:00') - new Date()) / 86400000) + 1 : 0;
-
-  return `
-    <div style="min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center">
-      <div style="font-size:80px;margin-bottom:8px;animation:bounce 2s infinite">🏖️</div>
-      <div style="font-size:22px;font-weight:800;color:var(--primary);margin-bottom:8px">
-        ${currentProfile.nome.split(' ')[0]}, você está de férias!
-      </div>
-      <div style="background:var(--cream);border-radius:var(--radius);padding:16px 20px;margin:16px 0;border:2px solid var(--accent)">
-        <div style="font-size:14px;color:var(--text2);font-style:italic;line-height:1.5">"${frase}"</div>
-      </div>
-      <div style="background:var(--surface);border-radius:var(--radius);padding:16px 20px;border:2px solid var(--border);width:100%;margin-top:8px">
-        <div style="display:flex;justify-content:space-around">
-          <div style="text-align:center">
-            <div style="font-size:28px;font-weight:800;color:var(--green);font-family:'JetBrains Mono',monospace">${diasRestantes}</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:2px">dias restantes</div>
-          </div>
-          <div style="width:1px;background:var(--border)"></div>
-          <div style="text-align:center">
-            <div style="font-size:14px;font-weight:800;color:var(--primary)">${fimFerias}</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:2px">retorno previsto</div>
-          </div>
-        </div>
-      </div>
-      <div style="margin-top:20px;font-size:12px;color:var(--text3)">
-        🔒 Registro de ponto desabilitado durante as férias
-      </div>
-    </div>
-    <style>
-      @keyframes bounce {
-        0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)}
-      }
-    </style>`;
-}
-
-async function buildFeriasScreen() {
   const ferias = await getFeriasFunc(currentUser.uid);
   const hoje = getToday();
   const periodo = ferias.find(f => hoje >= f.inicio && hoje <= f.fim);
