@@ -842,6 +842,26 @@ window.registrarPonto = async function(tipo) {
       criadoEm: serverTimestamp(),
     });
     showToast(`✅ ${tipoLabel(tipo)} registrada às ${rec.hora}`);
+
+    // Enviar notificação Telegram direto da funcionária
+    const agora = now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    const local = geoAddress ? '\n📍 '+geoAddress : '';
+    const emojis = {entrada:'🌅',saida:'🌇','inicio-intervalo':'☕','fim-intervalo':'🔙'};
+    const emoji = emojis[tipo] || '🕐';
+    await sendTelegram(emoji+' <b>'+tipoLabel(tipo)+' registrada</b>\n👤 '+currentProfile.nome+'\n🕐 '+agora+local);
+
+    // Se saída, verificar hora extra
+    if (tipo === 'saida') {
+      const allRecs = await getUserTodayRecords(currentUser.uid);
+      const profSnap = await getDoc(doc(db,'usuarios',currentUser.uid));
+      const jornada = profSnap.exists() ? (profSnap.data().jornada||8) : 8;
+      const horas = calcHorasFromRecs(allRecs);
+      if (horas !== null && horas > jornada) {
+        const extra = (horas - jornada).toFixed(1);
+        await sendTelegram('⚠️ <b>Hora extra detectada!</b>\n👤 '+currentProfile.nome+'\nTrabalhou '+horas.toFixed(1)+'h de '+jornada+'h\n➕ '+extra+'h extra');
+      }
+    }
+
     await showScreen('ponto');
   } catch(e) {
     showToast('❌ Erro ao registrar. Tente novamente.');
