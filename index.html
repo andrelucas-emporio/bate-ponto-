@@ -503,6 +503,25 @@ async function requestNotifPermission() {
   }
 }
 
+const TELEGRAM_TOKEN = '8717380926:AAFUxawiG_GhuMrGnqmM_NBpOMDFApb4IdM';
+const TELEGRAM_CHAT_ID = '8717380926';
+
+async function sendTelegram(msg) {
+  try {
+    await fetch('https://api.telegram.org/bot'+TELEGRAM_TOKEN+'/sendMessage', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        chat_id: TELEGRAM_CHAT_ID,
+        text: msg,
+        parse_mode: 'HTML'
+      })
+    });
+  } catch(e) {
+    console.log('Telegram error:', e);
+  }
+}
+
 function sendNotif(title, body, icon='🕐') {
   if (notifPermission && 'Notification' in window) {
     new Notification(title, { body, icon: 'logo.jpeg' });
@@ -1520,10 +1539,13 @@ function iniciarListenerGerente() {
 
       const nome = rec.userName || 'Funcionário';
 
+      const agora = new Date(rec.timestamp).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
       if (rec.tipo === 'entrada') {
         sendNotif('✅ Entrada registrada', nome + ' acabou de bater o ponto de entrada.', '🌅');
+        sendTelegram('🌅 <b>Entrada registrada</b>\n👤 '+nome+'\n🕐 '+agora);
       } else if (rec.tipo === 'saida') {
         sendNotif('🌇 Saída registrada', nome + ' registrou saída agora.', '🌇');
+        sendTelegram('🌇 <b>Saída registrada</b>\n👤 '+nome+'\n🕐 '+agora);
         // Check if overtime
         setTimeout(async () => {
           const allRecs = await getUserTodayRecords(rec.userId);
@@ -1533,12 +1555,15 @@ function iniciarListenerGerente() {
           if (horas !== null && horas > jornada) {
             const extra = (horas - jornada).toFixed(1);
             sendNotif('⚠️ Hora extra detectada', nome + ' fez ' + extra + 'h extra hoje ('+horas.toFixed(1)+'h de '+jornada+'h).', '⚠️');
+            sendTelegram('⚠️ <b>Hora extra detectada!</b>\n👤 '+nome+'\nTrabalhou '+horas.toFixed(1)+'h de '+jornada+'h\n➕ '+extra+'h extra');
           }
         }, 2000);
       } else if (rec.tipo === 'inicio-intervalo') {
         sendNotif('☕ Intervalo iniciado', nome + ' iniciou o intervalo.', '☕');
+        sendTelegram('☕ <b>Intervalo iniciado</b>\n👤 '+nome+'\n🕐 '+agora);
       } else if (rec.tipo === 'fim-intervalo') {
         sendNotif('🔙 Retornou do intervalo', nome + ' voltou do intervalo.', '🔙');
+        sendTelegram('🔙 <b>Retornou do intervalo</b>\n👤 '+nome+'\n🕐 '+agora);
       }
 
       // Refresh dashboard if currently viewing it
